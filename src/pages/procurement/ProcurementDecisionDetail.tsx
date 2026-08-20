@@ -44,6 +44,7 @@ import { StockComparisonTable } from '@/components/StockComparisonTable';
 import { StatusTimeline } from '@/components/StatusTimeline';
 
 import { ListQueryBoundary } from '@/components/ListQueryBoundary';
+import { CoordinatorDailyCapBanner } from '@/components/PmDailyCapBanner';
 
 
 
@@ -592,6 +593,8 @@ export function ProcurementDecisionDetailPage({ listPath }: ProcurementDecisionD
             {decision.canCoordinatorReview && role === UserRole.COORDINATOR && (
 
               <div className="panel p-3 mb-3 space-y-3">
+
+                <CoordinatorDailyCapBanner />
 
                 <p className="text-sm font-semibold text-ink">Coordinator review (legacy branch transfer)</p>
 

@@ -22,6 +22,7 @@ import type {
   UpdateIndentDto,
   CreateIndentBranchTransfersDto,
   BranchTransferDto,
+  DailyCapDto,
 } from '@afios/shared';
 import { Card } from '@/components/ui/Card';
 import { Button } from '@/components/ui/Button';
@@ -35,7 +36,7 @@ import {
   takeKey,
   buildBatchSources,
 } from '@/components/CrossProjectStockPanel';
-import { PmDailyCapBanner } from '@/components/PmDailyCapBanner';
+import { PmDailyCapBanner, CoordinatorDailyCapBanner } from '@/components/PmDailyCapBanner';
 import { useApprovalShortcuts } from '@/hooks/useApprovalShortcuts';
 import { DetailField, DetailFieldGrid } from '@/components/ui/DetailFields';
 import { formatIndentQueueStatus } from '@/components/MaterialIndentsTable';
@@ -78,6 +79,16 @@ export function RequestDetailPage() {
     },
     enabled: !!id,
     ...forbiddenQueryOptions,
+  });
+
+  const { data: coordinatorCap } = useQuery({
+    queryKey: ['coordinator-daily-cap'],
+    queryFn: async () => {
+      const res = await api.get<{ data: DailyCapDto }>('/material-requests/coordinator/daily-cap');
+      return res.data.data;
+    },
+    enabled: role === UserRole.COORDINATOR,
+    refetchInterval: 30_000,
   });
 
   useRedirectOnForbidden(error);
@@ -135,6 +146,39 @@ export function RequestDetailPage() {
     },
     onError: (err: Error & { response?: { data?: { message?: string } } }) => {
       toast.error(err.response?.data?.message || 'Could not approve');
+    },
+  });
+
+  const coordinatorLocalClose = useMutation({
+    mutationFn: async (remark: string) => {
+      const res = await api.post<{
+        data: MaterialRequestDto;
+        escalated?: boolean;
+        message?: string;
+      }>(`/material-requests/${id}/coordinator-local-close`, { remark });
+      return res.data;
+    },
+    onSuccess: (data) => {
+      if (data.escalated) {
+        toast.info(data.message || 'Escalated to MD / Chairman — daily cap exceeded');
+      } else {
+        toast.success(
+          data.data?.status === 'ALLOCATED'
+            ? 'Closed at Coordinator — stock reserved for Store to issue'
+            : 'Approved at Coordinator — no MD escalation'
+        );
+      }
+      setPmRemark('');
+      queryClient.invalidateQueries({ queryKey: ['material-request', id] });
+      queryClient.invalidateQueries({ queryKey: ['coordinator-daily-cap'] });
+      queryClient.invalidateQueries({ queryKey: ['procurement-decisions'] });
+    },
+    onError: (err: Error & { response?: { data?: { message?: string; escalated?: boolean } } }) => {
+      toast.error(err.response?.data?.message || 'Could not approve at Coordinator');
+      if (err.response?.data?.escalated) {
+        queryClient.invalidateQueries({ queryKey: ['material-request', id] });
+        queryClient.invalidateQueries({ queryKey: ['coordinator-daily-cap'] });
+      }
     },
   });
 
@@ -318,6 +362,21 @@ export function RequestDetailPage() {
         request.poId ||
         canHoReview
     );
+  const canCoordinatorLocalClose =
+    role === UserRole.COORDINATOR &&
+    [
+      'PENDING_HO',
+      'PENDING_EXECUTIVE_DECISION',
+      'EXECUTIVE_DECISION_PO',
+      'EXECUTIVE_DECISION_BRANCH_TRANSFER',
+      'HO_PENDING_COORDINATOR',
+    ].includes(request.status) &&
+    !request.escalatedToChairman;
+  const coordinatorCanCloseWithinCap =
+    canCoordinatorLocalClose &&
+    (coordinatorCap
+      ? (request.estimatedValue || 0) <= coordinatorCap.remaining
+      : true);
   const awaitingDecision = ['PENDING_HO', 'PENDING_EXECUTIVE_DECISION'].includes(request.status);
   const canConfirmReceipt = role === UserRole.SITE_INCHARGE && request.status === 'ISSUED';
   const hidePricing = hideIndentPricingForRole(role, request.indentRequestType);
@@ -386,6 +445,15 @@ export function RequestDetailPage() {
       )}
 
       {canPmDecide && !isBelowCap && showPmApprove && <PmDailyCapBanner />}
+
+      {canCoordinatorLocalClose && <CoordinatorDailyCapBanner cap={coordinatorCap} />}
+
+      {request.escalatedToChairman && (
+        <div className="mb-4 rounded-xl border border-warning/30 bg-warning/5 px-3 py-2 text-sm">
+          This indent was escalated to MD / Chairman — it exceeds the Coordinator&apos;s
+          configurable daily approval limit (see Admin settings).
+        </div>
+      )}
 
       {request.escalatedToHo && !isBelowCap && (
         <div className="mb-4 rounded-xl border border-warning/30 bg-warning/5 px-3 py-2 text-sm">
@@ -719,6 +787,47 @@ export function RequestDetailPage() {
           </ul>
         </Card>
       ) : null}
+
+      {canCoordinatorLocalClose && (
+        <div className="mb-3 panel p-3">
+          <p className="text-sm font-semibold text-ink">Coordinator decision</p>
+          <p className="text-xs text-ink-secondary mt-1">
+            {coordinatorCanCloseWithinCap
+              ? 'Can locally approve and close. No need to reach out to MD/Coordinator level.'
+              : 'This indent exceeds the remaining Coordinator daily cap — it will escalate to MD / Chairman.'}
+          </p>
+          <div className="mt-3">
+            <label className="text-sm font-medium text-ink-secondary block mb-2">
+              Remark <span className="text-danger">*</span>
+            </label>
+            <Textarea
+              value={pmRemark}
+              onChange={(e) => {
+                setPmRemark(e.target.value);
+                if (e.target.value.trim()) setPmRemarkError('');
+              }}
+              placeholder="Decision rationale — visible in audit trail…"
+            />
+            {pmRemarkError && <p className="text-xs text-danger mt-1">{pmRemarkError}</p>}
+          </div>
+          <Button
+            className="mt-3"
+            variant="accent"
+            accentColor={ROLE_COLORS[UserRole.COORDINATOR].primary}
+            disabled={coordinatorLocalClose.isPending}
+            onClick={() => {
+              if (!requirePmRemark()) return;
+              coordinatorLocalClose.mutate(pmRemark.trim());
+            }}
+          >
+            {coordinatorCanCloseWithinCap
+              ? stockAvailable
+                ? 'Approve & close at Coordinator'
+                : 'Approve at Coordinator (no MD)'
+              : 'Escalate to MD / Chairman'}
+          </Button>
+        </div>
+      )}
 
       {showPmDecisionPanel && (
         <div className="mb-3 panel p-3">
