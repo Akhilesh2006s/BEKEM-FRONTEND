@@ -2,8 +2,8 @@ import { ChevronDown, ChevronRight, Plus, Search, Trash2, X } from 'lucide-react
 import { useMemo, useRef, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { toast } from 'sonner';
-import { DEFAULT_GST_PERCENT } from '@afios/shared';
-import type { CreateVendorDto, VendorDto } from '@afios/shared';
+import { DEFAULT_GST_PERCENT, MATERIAL_CATEGORY_NAMES } from '@afios/shared';
+import type { CreateVendorDto, MaterialCategoryDto, VendorDto } from '@afios/shared';
 import { api } from '@/lib/api';
 import { Button } from '@/components/ui/Button';
 import { Input } from '@/components/ui/Input';
@@ -49,6 +49,8 @@ const emptyVendorForm = (): CreateVendorDto => ({
   bankName: '',
   bankAccountNumber: '',
   ifscCode: '',
+  category: '',
+  suppliedCategories: [],
   materialIds: [],
 });
 
@@ -102,6 +104,21 @@ export function VendorQuotationEditor({
       return res.data.data ?? [];
     },
   });
+
+  const { data: materialCategories } = useQuery({
+    queryKey: ['material-categories'],
+    queryFn: async () => {
+      const res = await api.get<{ data: MaterialCategoryDto[] }>('/material-categories');
+      return res.data.data ?? [];
+    },
+  });
+
+  const categoryOptions = useMemo(() => {
+    const names = (materialCategories ?? [])
+      .map((c) => c.name)
+      .filter((name): name is string => !!name?.trim());
+    return names.length ? names : [...MATERIAL_CATEGORY_NAMES];
+  }, [materialCategories]);
 
   const [productVendorSearch, setProductVendorSearch] = useState<Record<string, string>>({});
   const [searchFocusedMaterialId, setSearchFocusedMaterialId] = useState<string | null>(null);
@@ -278,6 +295,10 @@ export function VendorQuotationEditor({
         bankAccountNumber: createForm.bankAccountNumber?.trim() || '',
         ifscCode: createForm.ifscCode?.trim() || '',
         gstNumber: createForm.gstNumber?.trim() || '',
+        category: createForm.category?.trim() || '',
+        suppliedCategories: createForm.category?.trim()
+          ? [createForm.category.trim()]
+          : [],
         materialIds: createProductIds,
       };
       const res = await api.post<{ data: VendorDto }>('/vendors', payload);
@@ -308,6 +329,7 @@ export function VendorQuotationEditor({
     !!createForm.bankName?.trim() &&
     !!createForm.bankAccountNumber?.trim() &&
     !!createForm.ifscCode?.trim() &&
+    !!createForm.category?.trim() &&
     createProductIds.length > 0;
 
   return (
@@ -705,6 +727,28 @@ export function VendorQuotationEditor({
                 onChange={(e) => setCreateForm((f) => ({ ...f, name: e.target.value }))}
                 placeholder="Supplier name"
               />
+            </label>
+            <label className="block sm:col-span-2">
+              <span className="text-[11px] font-medium text-ink-secondary">Category *</span>
+              <select
+                className="input-compact mt-0.5 flex h-7 w-full rounded border border-surface-border bg-white px-2 text-xs text-ink focus:outline-none focus:ring-2 focus:ring-bekem-navy/15 focus:border-bekem-navy/30"
+                value={createForm.category || ''}
+                onChange={(e) =>
+                  setCreateForm((f) => ({
+                    ...f,
+                    category: e.target.value,
+                    suppliedCategories: e.target.value ? [e.target.value] : [],
+                  }))
+                }
+                aria-label="Vendor category"
+              >
+                <option value="">Select category…</option>
+                {categoryOptions.map((name) => (
+                  <option key={name} value={name}>
+                    {name}
+                  </option>
+                ))}
+              </select>
             </label>
             <label className="block">
               <span className="text-[11px] font-medium text-ink-secondary">GST number</span>
