@@ -15,16 +15,17 @@ export function formatIndentQueueStatus(
   status: string,
   _pendingWith?: string,
   _approverNames?: MaterialRequestDto['approverNames'],
-  poStatus?: string
+  poStatus?: string,
+  pmProceededAllocation?: boolean
 ): string {
   if (['REJECTED', 'CANCELLED', 'COMPLETED', 'CLOSED'].includes(status)) {
     return getStatusLabel(status);
   }
 
   if (
-    status === 'CHAIRMAN_APPROVED' ||
-    (poStatus === 'APPROVED' &&
-      !['ALLOCATED', 'MATERIAL_RECEIVED', 'ISSUED'].includes(status))
+    !pmProceededAllocation &&
+    !['ISSUED', 'COMPLETED', 'CLOSED', 'ALLOCATED'].includes(status) &&
+    (status === 'CHAIRMAN_APPROVED' || poStatus === 'APPROVED')
   ) {
     return `Approved by ${roleLabel(UserRole.EXECUTIVE)}`;
   }
@@ -65,7 +66,6 @@ export function formatIndentQueueStatus(
 
 const CLOSED_FOR_PM_ALLOCATION = new Set([
   'ALLOCATED',
-  'MATERIAL_RECEIVED',
   'ISSUED',
   'COMPLETED',
   'CLOSED',
@@ -151,7 +151,13 @@ function toIndentRows(
           )
           ? 'Issued to site'
           : 'Partially issued to site'
-        : formatIndentQueueStatus(r.status, r.pendingWith, r.approverNames, r.poStatus),
+        : formatIndentQueueStatus(
+            r.status,
+            r.pendingWith,
+            r.approverNames,
+            r.poStatus,
+            r.pmProceededAllocation
+          ),
     prNumber: r.prNumber,
     rfqNumber: r.rfqNumber,
     rfqStatus: r.rfqStatus,

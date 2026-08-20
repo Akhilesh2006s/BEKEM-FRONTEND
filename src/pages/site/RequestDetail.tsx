@@ -452,7 +452,8 @@ export function RequestDetailPage() {
               request.status,
               request.pendingWith,
               request.approverNames,
-              request.poStatus
+              request.poStatus,
+              request.pmProceededAllocation
             )}
             className="mt-1"
           />

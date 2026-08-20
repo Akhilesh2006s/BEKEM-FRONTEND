@@ -102,19 +102,16 @@ export function matchesIndentQueueQuickFilter(
     return (request.items || []).some((item) => Number(item.availableToIssueQty || 0) > 0);
   }
   if (filter === 'awaiting-store') {
-    return AWAITING_STORE_STATUSES.has(status);
+    return AWAITING_STORE_STATUSES.has(status) && !isIndentReadyForPmAllocation(request);
   }
   if (filter === 'approved-store') {
-    return APPROVED_STORE_STATUSES.has(status);
+    return APPROVED_STORE_STATUSES.has(status) && !isIndentReadyForPmAllocation(request);
   }
   if (filter === 'pm') {
-    return APPROVED_PM_STATUSES.has(status);
+    return APPROVED_PM_STATUSES.has(status) && !isIndentReadyForPmAllocation(request);
   }
   if (filter === 'executive') {
-    return (
-      EXECUTIVE_STATUSES.has(status) ||
-      (request.poStatus === 'APPROVED' && isIndentReadyForPmAllocation(request))
-    );
+    return EXECUTIVE_STATUSES.has(status) || isIndentReadyForPmAllocation(request);
   }
   if (filter === 'coordinator') {
     return COORDINATOR_STATUSES.has(status);
@@ -145,7 +142,8 @@ export function matchesIndentSearch(request: MaterialRequestDto, rawQuery: strin
     request.status,
     request.pendingWith,
     request.approverNames,
-    request.poStatus
+    request.poStatus,
+    request.pmProceededAllocation
   );
   const haystack = [
     request.indentNumber,
