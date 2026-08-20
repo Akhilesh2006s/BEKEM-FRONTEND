@@ -517,6 +517,11 @@ export interface MaterialRequestDto {
             projectCode: string;
             projectName: string;
             availableQty: number;
+            sites?: Array<{
+                siteId: string;
+                siteName: string;
+                availableQty: number;
+            }>;
         }>;
     }>;
 }
@@ -1383,6 +1388,7 @@ export interface BranchTransferDto {
 }
 export interface CreateBranchTransferDto {
     fromProjectId: string;
+    fromSiteId?: string;
     toProjectId?: string;
     items: Array<{
         materialId: string;
