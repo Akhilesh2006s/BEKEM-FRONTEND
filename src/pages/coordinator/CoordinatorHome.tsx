@@ -12,6 +12,7 @@ import { TodayPanel } from '@/components/layout/TodayPanel';
 import { DashboardSearch } from '@/components/layout/DashboardSearch';
 import { DashboardWidgetCards } from '@/components/DashboardWidgetCards';
 import { useTodayActions } from '@/hooks/useTodayActions';
+import { useListQuery, normalizeListData } from '@/hooks/useListQuery';
 import { CoordinatorDailyCapBanner } from '@/components/PmDailyCapBanner';
 
 export function CoordinatorHomePage() {
