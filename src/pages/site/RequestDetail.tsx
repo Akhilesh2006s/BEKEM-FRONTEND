@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { useNavigate, useParams, Navigate } from 'react-router-dom';
+import { useNavigate, useParams, Navigate, Link } from 'react-router-dom';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { ArrowLeft, Copy, Pencil } from 'lucide-react';
 import { toast } from 'sonner';
@@ -17,20 +17,40 @@ import {
   canEditIndentOneLevelAhead,
   formatProjectLabel,
 } from '@afios/shared';
-import type { MaterialRequestDto, UpdateIndentDto, CreateBranchTransferDto } from '@afios/shared';
+import type {
+  MaterialRequestDto,
+  UpdateIndentDto,
+  CreateIndentBranchTransfersDto,
+  BranchTransferDto,
+} from '@afios/shared';
 import { Card } from '@/components/ui/Card';
 import { Button } from '@/components/ui/Button';
 import { StatusBadge } from '@/components/ui/StatusBadge';
 import { StatusTimeline } from '@/components/StatusTimeline';
 import { Input, Textarea } from '@/components/ui/Input';
 import { StockComparisonTable } from '@/components/StockComparisonTable';
-import { CrossProjectStockPanel, otherProjectSitesWithStock, transferQtyForSource, type CrossProjectSource } from '@/components/CrossProjectStockPanel';
+import {
+  CrossProjectStockPanel,
+  otherProjectSitesWithStock,
+  takeKey,
+  buildBatchSources,
+} from '@/components/CrossProjectStockPanel';
 import { PmDailyCapBanner } from '@/components/PmDailyCapBanner';
 import { useApprovalShortcuts } from '@/hooks/useApprovalShortcuts';
 import { DetailField, DetailFieldGrid } from '@/components/ui/DetailFields';
 import { formatIndentQueueStatus } from '@/components/MaterialIndentsTable';
 import { QuantityStepper } from '@/components/QuantityStepper';
 import { newIdempotencyKey, idempotencyHeaders } from '@/lib/idempotency';
+
+const CLOSED_INDENT_BT = ['REJECTED', 'RAISE_PO_INSTEAD'];
+
+function qtyCoveredByTransfers(transfers: BranchTransferDto[] | undefined, materialId: string) {
+  return (transfers || [])
+    .filter((t) => !CLOSED_INDENT_BT.includes(t.status))
+    .flatMap((t) => t.items || [])
+    .filter((item) => item.materialId === materialId)
+    .reduce((sum, item) => sum + (Number(item.quantity) || 0), 0);
+}
 
 export function RequestDetailPage() {
   const { id } = useParams<{ id: string }>();
@@ -48,7 +68,7 @@ export function RequestDetailPage() {
   const [editRequiredByDate, setEditRequiredByDate] = useState('');
   const [editQty, setEditQty] = useState(0);
   const [editUnit, setEditUnit] = useState('Nos');
-  const [btSource, setBtSource] = useState<CrossProjectSource | null>(null);
+  const [takeQtyByKey, setTakeQtyByKey] = useState<Record<string, number>>({});
 
   const { data: request, isLoading, isError, error } = useQuery({
     queryKey: ['material-request', id],
@@ -76,7 +96,7 @@ export function RequestDetailPage() {
   }, [request]);
 
   useEffect(() => {
-    setBtSource(null);
+    setTakeQtyByKey({});
   }, [request?.id]);
 
   const saveIndent = useMutation({
@@ -137,23 +157,27 @@ export function RequestDetailPage() {
     },
   });
 
-  const requestBranchTransfer = useMutation({
-    mutationFn: async (payload: CreateBranchTransferDto) => {
-      const res = await api.post<{ data: { id: string; transferNumber: string } }>(
-        '/branch-transfers',
-        payload,
-        { headers: idempotencyHeaders(newIdempotencyKey(`bt:${id}`)) }
-      );
+  const requestBranchTransfers = useMutation({
+    mutationFn: async (payload: CreateIndentBranchTransfersDto) => {
+      const res = await api.post<{
+        data: { transfers: Array<{ id: string; transferNumber: string }> };
+      }>('/branch-transfers/batch', payload, {
+        headers: idempotencyHeaders(newIdempotencyKey(`bt-batch:${id}`)),
+      });
       return res.data.data;
     },
     onSuccess: (data) => {
-      toast.success(`Branch transfer ${data.transferNumber} sent to Head Office for approval`);
+      const numbers = data.transfers.map((t) => t.transferNumber).join(', ');
+      toast.success(
+        data.transfers.length === 1
+          ? `Branch transfer ${numbers} sent to Head Office for approval`
+          : `${data.transfers.length} branch transfers sent to Head Office (${numbers})`
+      );
       setPmRemark('');
-      setBtSource(null);
+      setTakeQtyByKey({});
       queryClient.invalidateQueries({ queryKey: ['material-request', id] });
       queryClient.invalidateQueries({ queryKey: ['pm-approvals'] });
       queryClient.invalidateQueries({ queryKey: ['pm-branch-transfer-requests'] });
-      navigate(`/branch-transfers/${data.id}`);
     },
     onError: (err: Error & { response?: { data?: { message?: string } } }) => {
       toast.error(err.response?.data?.message || 'Could not request branch transfer');
@@ -174,22 +198,61 @@ export function RequestDetailPage() {
     },
   });
 
-  const canPmDecide =
+  const pmCanActOnIndent =
     !!request &&
     role === UserRole.PROJECT_MANAGER &&
-    request.status === 'FORWARDED_TO_PM' &&
+    ['FORWARDED_TO_PM', 'BRANCH_TRANSFER_REQUESTED'].includes(request.status) &&
     !request.escalatedToHo;
+  const canPmDecide = Boolean(pmCanActOnIndent && request?.status === 'FORWARDED_TO_PM');
   /** Live stock check only — storeStockVerified alone must not allow a PM close. */
   const stockAvailable = Boolean(request?.canFullyIssue);
   const isBelowCap = request?.indentRequestType === 'BELOW_5000';
+  const indentTakeLines = (
+    request?.items?.length
+      ? request.items
+      : request?.materialId
+        ? [{ materialId: request.materialId, quantityRequested: request.quantityRequested || 0 }]
+        : []
+  ).map((item) => ({
+    materialId: item.materialId,
+    quantityRequested: item.quantityRequested || 0,
+  }));
+  const requestedByMaterial: Record<string, number> = {};
+  for (const line of indentTakeLines) {
+    if (!line.materialId) continue;
+    requestedByMaterial[line.materialId] =
+      (requestedByMaterial[line.materialId] || 0) + line.quantityRequested;
+  }
+  const alreadyCoveredByMaterial: Record<string, number> = {};
+  for (const materialId of Object.keys(requestedByMaterial)) {
+    alreadyCoveredByMaterial[materialId] = qtyCoveredByTransfers(
+      request?.linkedBranchTransfers,
+      materialId
+    );
+  }
+  const totalRequested = Object.values(requestedByMaterial).reduce((sum, qty) => sum + qty, 0);
+  const totalAlready = Object.values(alreadyCoveredByMaterial).reduce((sum, qty) => sum + qty, 0);
+  const totalTaking = Object.values(takeQtyByKey).reduce((sum, qty) => sum + (Number(qty) || 0), 0);
+  const remainingAfterExisting = Math.max(0, totalRequested - totalAlready);
+  const remainingAfterTakes = Math.max(0, remainingAfterExisting - totalTaking);
+  const lockedSiteIds = (request?.linkedBranchTransfers || [])
+    .filter((t) => !CLOSED_INDENT_BT.includes(t.status) && t.fromSiteId)
+    .map((t) => t.fromSiteId as string);
   const otherStockAvailable = otherProjectSitesWithStock(
     request?.crossProjectStock || [],
     request?.projectId
-  ).length > 0;
-  const showBranchTransfer = Boolean(canPmDecide && !stockAvailable && otherStockAvailable);
-  /** Stock-short with no other-project surplus goes to Head Office for purchase. */
-  const showForwardToHo = Boolean(canPmDecide && !stockAvailable && !otherStockAvailable);
+  ).some((site) => !lockedSiteIds.includes(site.siteId));
+  const showBranchTransfer = Boolean(
+    pmCanActOnIndent && !stockAvailable && otherStockAvailable && remainingAfterExisting > 0
+  );
+  /** Remaining shortfall after takes / existing BTs still goes to Head Office. */
+  const showForwardToHo = Boolean(
+    pmCanActOnIndent && !stockAvailable && remainingAfterTakes > 0 && totalTaking === 0
+  );
   const showPmApprove = Boolean(canPmDecide && stockAvailable);
+  const showPmDecisionPanel = Boolean(
+    pmCanActOnIndent && (showPmApprove || remainingAfterExisting > 0)
+  );
   const pmApproveClosesAtPm = stockAvailable;
 
   useApprovalShortcuts({
@@ -603,20 +666,61 @@ export function RequestDetailPage() {
           <h2 className="font-semibold text-gray-900 mb-3">Stock at other projects</h2>
           <p className="text-xs text-ink-secondary mb-3">
             {showBranchTransfer
-              ? 'Select a source site with stock, then request a branch transfer to this indent. Head Office will approve it — this does not raise a purchase order.'
+              ? 'Enter how many to take from each site (up to available). You can take from more than one project. Any leftover still goes to Head Office.'
               : 'Live stock on your other assigned projects and their sites — not this indent\u2019s project.'}
           </p>
           <CrossProjectStockPanel
             rows={request.crossProjectStock}
             requestingProjectId={request.projectId}
-            selectedSiteId={showBranchTransfer ? btSource?.siteId : undefined}
-            onSelectSource={showBranchTransfer ? setBtSource : undefined}
+            takeQtyByKey={takeQtyByKey}
+            onChangeTake={
+              showBranchTransfer
+                ? (materialId, source, qty) => {
+                    setTakeQtyByKey((prev) => ({
+                      ...prev,
+                      [takeKey(materialId, source.siteId)]: qty,
+                    }));
+                  }
+                : undefined
+            }
+            requestedByMaterial={requestedByMaterial}
+            alreadyCoveredByMaterial={alreadyCoveredByMaterial}
+            lockedSiteIds={lockedSiteIds}
             className="mb-3"
           />
         </>
       ) : null}
 
-      {canPmDecide && (
+      {role === UserRole.PROJECT_MANAGER && (request.linkedBranchTransfers?.length || 0) > 0 ? (
+        <Card className="mb-3 p-4 space-y-2">
+          <p className="text-sm font-semibold text-ink">Branch transfers on this indent</p>
+          <ul className="space-y-2">
+            {request.linkedBranchTransfers!.map((t) => (
+              <li key={t.id}>
+                <Link
+                  to={`/branch-transfers/${t.id}`}
+                  className="flex items-start justify-between gap-3 rounded-xl border border-surface-border px-3 py-2 text-sm hover:bg-surface-muted/50"
+                >
+                  <div className="min-w-0">
+                    <p className="font-medium text-ink">{t.transferNumber}</p>
+                    <p className="text-xs text-ink-secondary">
+                      {[t.fromProjectName, t.fromSite].filter(Boolean).join(' · ') || 'Source site'}
+                      {t.items?.length
+                        ? ` · ${t.items.map((item) => `${item.quantity} ${item.materialName || ''}`.trim()).join(', ')}`
+                        : ''}
+                    </p>
+                  </div>
+                  <span className="text-xs font-medium text-ink-muted shrink-0">
+                    {t.status.replace(/_/g, ' ')}
+                  </span>
+                </Link>
+              </li>
+            ))}
+          </ul>
+        </Card>
+      ) : null}
+
+      {showPmDecisionPanel && (
         <div className="mb-3 panel p-3">
           <div className="grid gap-3 lg:grid-cols-2">
             <div>
@@ -626,14 +730,26 @@ export function RequestDetailPage() {
                   ? stockAvailable
                     ? 'Below ₹5,000 and stock is available — Approve to close at PM and reserve stock for Store to issue.'
                     : showBranchTransfer
-                      ? 'Below ₹5,000 and this site is short, but other projects have stock — request a branch transfer.'
-                      : 'Below ₹5,000 and stock is short — Forward to Head Office for procurement.'
+                      ? `Below ₹5,000 and this site is short. Take from other projects (currently ${totalTaking} of ${remainingAfterExisting}), then forward the remaining ${remainingAfterTakes} to Head Office if needed.`
+                      : remainingAfterExisting > 0
+                        ? `Below ₹5,000 — ${remainingAfterExisting} still needed. Forward remaining to Head Office for procurement.`
+                        : 'Below ₹5,000 and stock is short — Forward to Head Office for procurement.'
                   : stockAvailable
                     ? 'Stock is available at site — Approve to close at PM and reserve allocation so Store can issue.'
                     : showBranchTransfer
-                      ? 'This site is short, but other assigned projects have stock. Select a source site and request a branch transfer instead of buying.'
-                      : 'Stock is short at site. Forward to Head Office for stock requisition / procurement.'}
+                      ? `This site is short. Take qty from one or more assigned projects (currently ${totalTaking} of ${remainingAfterExisting}). Remaining ${remainingAfterTakes} can still go to Head Office.`
+                      : remainingAfterExisting > 0
+                        ? `${remainingAfterExisting} still needed after branch transfers. Forward remaining to Head Office for stock requisition.`
+                        : 'Stock is short at site. Forward to Head Office for stock requisition / procurement.'}
               </p>
+              {showBranchTransfer && totalRequested > 0 ? (
+                <p className="mt-2 text-xs font-medium tabular-nums text-ink">
+                  Taking {totalAlready + totalTaking} of {totalRequested}
+                  {remainingAfterTakes > 0
+                    ? ` · Remaining ${remainingAfterTakes} for HO`
+                    : ' · Fully covered by transfers'}
+                </p>
+              ) : null}
 
               <div className="mt-3">
                 <label className="text-sm font-medium text-ink-secondary block mb-2">
@@ -646,10 +762,12 @@ export function RequestDetailPage() {
                     if (e.target.value.trim()) setPmRemarkError('');
                   }}
                   placeholder={
-                    showBranchTransfer
-                      ? 'Why transfer from the selected project/site…'
+                    totalTaking > 0
+                      ? 'Why take this stock from the selected project sites…'
                       : showForwardToHo
-                      ? 'Reason for stock requisition to Head Office…'
+                      ? remainingAfterExisting < totalRequested
+                        ? 'Reason for remaining stock requisition to Head Office…'
+                        : 'Reason for stock requisition to Head Office…'
                       : 'Decision rationale — visible in audit trail to all approvers…'
                   }
                 />
@@ -665,7 +783,7 @@ export function RequestDetailPage() {
                   disabled={
                     pmLocalClose.isPending ||
                     forwardToHo.isPending ||
-                    requestBranchTransfer.isPending
+                    requestBranchTransfers.isPending
                   }
                   onClick={() => {
                     if (!requirePmRemark()) return;
@@ -680,72 +798,62 @@ export function RequestDetailPage() {
                   variant="accent"
                   accentColor={accent}
                   disabled={
-                    requestBranchTransfer.isPending ||
+                    requestBranchTransfers.isPending ||
                     forwardToHo.isPending ||
-                    pmLocalClose.isPending
+                    pmLocalClose.isPending ||
+                    totalTaking <= 0
                   }
                   onClick={() => {
                     if (!requirePmRemark()) return;
-                    if (!btSource) {
-                      toast.error('Select a source project site with available stock');
-                      return;
-                    }
-                    const indentLines = (request.items?.length
-                      ? request.items
-                      : request.materialId
-                        ? [
-                            {
-                              materialId: request.materialId,
-                              quantityRequested: request.quantityRequested || 0,
-                            },
-                          ]
-                        : []
-                    ).map((item) => ({
-                      materialId: item.materialId,
-                      quantityRequested: item.quantityRequested,
-                    }));
-                    const payloadItems = transferQtyForSource(
-                      request.crossProjectStock || [],
-                      indentLines,
-                      btSource.siteId
+                    const sources = buildBatchSources(
+                      takeQtyByKey,
+                      otherProjectSitesWithStock(
+                        request.crossProjectStock || [],
+                        request.projectId
+                      )
                     );
-                    if (!payloadItems.length) {
-                      toast.error('Selected site has no available qty for this indent');
+                    if (!sources.length) {
+                      toast.error('Enter a take quantity on at least one source site');
                       return;
                     }
-                    requestBranchTransfer.mutate({
-                      fromProjectId: btSource.projectId,
-                      fromSiteId: btSource.siteId,
+                    requestBranchTransfers.mutate({
                       materialRequestId: request.id,
                       note: pmRemark.trim(),
-                      items: payloadItems,
+                      sources,
                     });
                   }}
                 >
-                  {requestBranchTransfer.isPending
+                  {requestBranchTransfers.isPending
                     ? 'Requesting…'
-                    : btSource
-                      ? `Request branch transfer from ${btSource.projectName}`
-                      : 'Select a source site, then request branch transfer'}
+                    : totalTaking > 0
+                      ? `Request branch transfer for ${totalTaking}`
+                      : 'Enter take qty, then request branch transfer'}
                 </Button>
               )}
               {showForwardToHo && (
                 <Button
-                  variant="accent"
+                  variant={showBranchTransfer ? 'secondary' : 'accent'}
                   accentColor={accent}
                   disabled={
                     forwardToHo.isPending ||
                     pmLocalClose.isPending ||
-                    requestBranchTransfer.isPending
+                    requestBranchTransfers.isPending
                   }
                   onClick={() => {
                     if (!requirePmRemark()) return;
                     forwardToHo.mutate(pmRemark.trim());
                   }}
                 >
-                  Forward to HO for Stock Requisition
+                  {remainingAfterExisting < totalRequested
+                    ? `Forward remaining ${remainingAfterTakes} to HO`
+                    : 'Forward to HO for Stock Procurement'}
                 </Button>
               )}
+              {totalTaking > 0 && remainingAfterTakes > 0 ? (
+                <p className="text-[11px] text-ink-muted">
+                  Request the selected takes first. Remaining {remainingAfterTakes} can then be forwarded to Head Office.
+                </p>
+              ) : null}
             </div>
           </div>
         </div>

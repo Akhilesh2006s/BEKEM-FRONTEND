@@ -187,7 +187,7 @@ export function PmMobileApprovalPage() {
                   onClick={() => forwardHo.mutate()}
                 >
                   <Send className="h-5 w-5 mr-2" />
-                  Forward to HO for Stock Requisition
+                  Forward to HO for Stock Procurement
                 </Button>
               )}
               <Button
