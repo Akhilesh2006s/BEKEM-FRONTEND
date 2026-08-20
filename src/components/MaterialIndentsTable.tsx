@@ -10,23 +10,89 @@ function roleLabel(role: UserRole | null | undefined) {
   return role ? ROLE_LABELS[role] : '';
 }
 
+export type AllocationReviewStage =
+  | 'EXECUTIVE'
+  | 'PROJECT_MANAGER'
+  | 'STORE_INCHARGE'
+  | 'SITE_INCHARGE';
+
+const CLOSED_FOR_ALLOCATION_REVIEW = new Set([
+  'COMPLETED',
+  'CLOSED',
+  'REJECTED',
+  'CANCELLED',
+]);
+const ACTIVE_ALLOCATION_STAGES = new Set<AllocationReviewStage>([
+  'EXECUTIVE',
+  'PROJECT_MANAGER',
+  'STORE_INCHARGE',
+]);
+
+/** Infer the current owner in the post-PO allocation chain. */
+export function resolveAllocationReviewStage(
+  request: Pick<
+    MaterialRequestDto,
+    'status' | 'poStatus' | 'pmProceededAllocation' | 'allocationReviewStage'
+  >
+): AllocationReviewStage | null {
+  if (!request || CLOSED_FOR_ALLOCATION_REVIEW.has(request.status)) return null;
+  if (request.status === 'ISSUED' || request.allocationReviewStage === 'SITE_INCHARGE') {
+    return 'SITE_INCHARGE';
+  }
+  if (
+    request.allocationReviewStage &&
+    ACTIVE_ALLOCATION_STAGES.has(request.allocationReviewStage as AllocationReviewStage)
+  ) {
+    return request.allocationReviewStage as AllocationReviewStage;
+  }
+  const poApproved = request.status === 'CHAIRMAN_APPROVED' || request.poStatus === 'APPROVED';
+  if (!poApproved) return null;
+  if (request.pmProceededAllocation) return 'STORE_INCHARGE';
+  return 'EXECUTIVE';
+}
+
+/** Executive / PM / Store still need to Proceed with Allocation. */
+export function isInAllocationReview(request: MaterialRequestDto): boolean {
+  const stage = resolveAllocationReviewStage(request);
+  return stage === 'EXECUTIVE' || stage === 'PROJECT_MANAGER' || stage === 'STORE_INCHARGE';
+}
+
+export function isCurrentAllocationOwner(
+  request: MaterialRequestDto,
+  role: UserRole | string | undefined
+): boolean {
+  return Boolean(role) && resolveAllocationReviewStage(request) === role;
+}
+
 /** Show awaiting first, then latest approver until the next approver acts. */
 export function formatIndentQueueStatus(
   status: string,
   _pendingWith?: string,
   _approverNames?: MaterialRequestDto['approverNames'],
   poStatus?: string,
-  pmProceededAllocation?: boolean
+  pmProceededAllocation?: boolean,
+  allocationReviewStage?: MaterialRequestDto['allocationReviewStage']
 ): string {
   if (['REJECTED', 'CANCELLED', 'COMPLETED', 'CLOSED'].includes(status)) {
     return getStatusLabel(status);
   }
 
-  if (
-    !pmProceededAllocation &&
-    !['ISSUED', 'COMPLETED', 'CLOSED', 'ALLOCATED'].includes(status) &&
-    (status === 'CHAIRMAN_APPROVED' || poStatus === 'APPROVED')
-  ) {
+  const stage = resolveAllocationReviewStage({
+    status,
+    poStatus,
+    pmProceededAllocation,
+    allocationReviewStage,
+  });
+  if (stage === 'SITE_INCHARGE' || status === 'ISSUED') {
+    return 'Issued to site';
+  }
+  if (stage === 'STORE_INCHARGE') {
+    return 'Awaiting at Store In-Charge';
+  }
+  if (stage === 'PROJECT_MANAGER') {
+    return 'Awaiting at Project Manager';
+  }
+  if (stage === 'EXECUTIVE') {
     return `Approved by ${roleLabel(UserRole.EXECUTIVE)}`;
   }
 
@@ -64,21 +130,9 @@ export function formatIndentQueueStatus(
   }
 }
 
-const CLOSED_FOR_PM_ALLOCATION = new Set([
-  'ALLOCATED',
-  'ISSUED',
-  'COMPLETED',
-  'CLOSED',
-  'REJECTED',
-  'CANCELLED',
-]);
-
-/** Chairman has approved the PO — PM’s next step is Final review. */
+/** Current owner’s list next action is Final review; others see View indent. */
 export function isIndentReadyForPmAllocation(request: MaterialRequestDto): boolean {
-  if (request.pmProceededAllocation || CLOSED_FOR_PM_ALLOCATION.has(request.status)) {
-    return false;
-  }
-  return request.status === 'CHAIRMAN_APPROVED' || request.poStatus === 'APPROVED';
+  return isInAllocationReview(request);
 }
 
 type IndentTableRow = {
@@ -156,7 +210,8 @@ function toIndentRows(
             r.pendingWith,
             r.approverNames,
             r.poStatus,
-            r.pmProceededAllocation
+            r.pmProceededAllocation,
+            r.allocationReviewStage
           ),
     prNumber: r.prNumber,
     rfqNumber: r.rfqNumber,

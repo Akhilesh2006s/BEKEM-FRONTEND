@@ -204,7 +204,8 @@ export function SiteHomePage() {
                           r.pendingWith,
                           r.approverNames,
                           r.poStatus,
-                          r.pmProceededAllocation
+                          r.pmProceededAllocation,
+                          r.allocationReviewStage
                         )}
                       />
                     </td>

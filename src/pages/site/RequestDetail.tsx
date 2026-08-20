@@ -39,7 +39,7 @@ import {
 import { PmDailyCapBanner, CoordinatorDailyCapBanner } from '@/components/PmDailyCapBanner';
 import { useApprovalShortcuts } from '@/hooks/useApprovalShortcuts';
 import { DetailField, DetailFieldGrid } from '@/components/ui/DetailFields';
-import { formatIndentQueueStatus, isIndentReadyForPmAllocation } from '@/components/MaterialIndentsTable';
+import { formatIndentQueueStatus, isInAllocationReview, isCurrentAllocationOwner, resolveAllocationReviewStage } from '@/components/MaterialIndentsTable';
 import { QuantityStepper } from '@/components/QuantityStepper';
 import { newIdempotencyKey, idempotencyHeaders } from '@/lib/idempotency';
 
@@ -149,19 +149,26 @@ export function RequestDetailPage() {
     },
   });
 
-  const pmProceedAllocation = useMutation({
+  const proceedAllocation = useMutation({
     mutationFn: async (remark: string) => {
       const res = await api.post<{ data: MaterialRequestDto }>(
-        `/material-requests/${id}/pm-proceed-allocation`,
+        `/material-requests/${id}/proceed-allocation`,
         { remark }
       );
       return res.data.data;
     },
     onSuccess: (data) => {
+      const next = data.allocationReviewStage;
       toast.success(
-        data.status === 'ALLOCATED'
-          ? 'Final review complete — stock reserved for Store to issue'
-          : 'Final review completed after Executive approval'
+        next === 'PROJECT_MANAGER'
+          ? 'Proceeded with allocation — sent to Project Manager'
+          : next === 'STORE_INCHARGE'
+            ? data.status === 'ALLOCATED'
+              ? 'Proceeded with allocation — stock reserved for Store to issue'
+              : 'Proceeded with allocation — sent to Store In-Charge'
+            : data.status === 'ISSUED'
+              ? 'Issued to site — indent raiser can collect & verify'
+              : 'Proceeded with allocation'
       );
       setPmRemark('');
       queryClient.invalidateQueries({ queryKey: ['material-request', id] });
@@ -169,7 +176,7 @@ export function RequestDetailPage() {
       queryClient.invalidateQueries({ queryKey: ['pm-approvals'] });
     },
     onError: (err: Error & { response?: { data?: { message?: string } } }) => {
-      toast.error(err.response?.data?.message || 'Could not complete final review');
+      toast.error(err.response?.data?.message || 'Could not proceed with allocation');
     },
   });
 
@@ -271,9 +278,34 @@ export function RequestDetailPage() {
     role === UserRole.PROJECT_MANAGER &&
     ['FORWARDED_TO_PM', 'BRANCH_TRANSFER_REQUESTED'].includes(request.status) &&
     !request.escalatedToHo;
-  const canPmProceedAllocation = Boolean(
-    request && role === UserRole.PROJECT_MANAGER && isIndentReadyForPmAllocation(request)
+  const allocationReviewerRoles = [
+    UserRole.EXECUTIVE,
+    UserRole.PROJECT_MANAGER,
+    UserRole.STORE_INCHARGE,
+  ];
+  const showProceedAllocationPanel = Boolean(
+    request &&
+      allocationReviewerRoles.includes(role) &&
+      isInAllocationReview(request)
   );
+  const canClickProceedAllocation = Boolean(
+    request && isCurrentAllocationOwner(request, role)
+  );
+  const allocationStage = request ? resolveAllocationReviewStage(request) : null;
+  const allocationOwnerLabel =
+    allocationStage === UserRole.EXECUTIVE
+      ? 'Executive'
+      : allocationStage === UserRole.PROJECT_MANAGER
+        ? 'Project Manager'
+        : allocationStage === UserRole.STORE_INCHARGE
+          ? 'Store In-Charge'
+          : 'current owner';
+  const proceedAllocationHint =
+    allocationStage === UserRole.EXECUTIVE
+      ? 'PO is approved. Proceed with Allocation to send this indent to the Project Manager.'
+      : allocationStage === UserRole.PROJECT_MANAGER
+        ? 'Executive proceeded with allocation. Proceed with Allocation to send this indent to Store In-Charge.'
+        : 'PM proceeded with allocation. Proceed with Allocation to issue materials to the indent raiser.';
   const canPmDecide = Boolean(pmCanActOnIndent && request?.status === 'FORWARDED_TO_PM');
   /** Live stock check only — storeStockVerified alone must not allow a PM close. */
   const stockAvailable = Boolean(request?.canFullyIssue);
@@ -453,7 +485,8 @@ export function RequestDetailPage() {
               request.pendingWith,
               request.approverNames,
               request.poStatus,
-              request.pmProceededAllocation
+              request.pmProceededAllocation,
+              request.allocationReviewStage
             )}
             className="mt-1"
           />
@@ -862,12 +895,13 @@ export function RequestDetailPage() {
         </div>
       )}
 
-      {canPmProceedAllocation && (
+      {showProceedAllocationPanel && (
         <div className="mb-3 panel p-3">
-          <p className="text-sm font-semibold text-ink">Final review</p>
+          <p className="text-sm font-semibold text-ink">Proceed with Allocation</p>
           <p className="text-xs text-ink-secondary mt-1">
-            Chairman has approved this purchase order. Status is Approved by Executive — complete
-            final review so Store can issue when stock is ready.
+            {canClickProceedAllocation
+              ? proceedAllocationHint
+              : `Waiting for ${allocationOwnerLabel} to proceed with allocation.`}
           </p>
           <div className="mt-3">
             <label className="text-sm font-medium text-ink-secondary block mb-2">
@@ -879,21 +913,23 @@ export function RequestDetailPage() {
                 setPmRemark(e.target.value);
                 if (e.target.value.trim()) setPmRemarkError('');
               }}
-              placeholder="Final review remark after Executive / Chairman approval…"
+              placeholder="Remark for Proceed with Allocation…"
+              disabled={!canClickProceedAllocation}
             />
             {pmRemarkError && <p className="text-xs text-danger mt-1">{pmRemarkError}</p>}
           </div>
           <Button
             className="mt-3"
             variant="accent"
-            accentColor={accent}
-            disabled={pmProceedAllocation.isPending}
+            accentColor={ROLE_COLORS[role]?.primary || accent}
+            disabled={!canClickProceedAllocation || proceedAllocation.isPending}
             onClick={() => {
+              if (!canClickProceedAllocation) return;
               if (!requirePmRemark()) return;
-              pmProceedAllocation.mutate(pmRemark.trim());
+              proceedAllocation.mutate(pmRemark.trim());
             }}
           >
-            Final review
+            Proceed with Allocation
           </Button>
         </div>
       )}

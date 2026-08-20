@@ -1,6 +1,6 @@
 import type { MaterialRequestDto } from '@afios/shared';
 import { UserRole } from '@afios/shared';
-import { formatIndentQueueStatus, isIndentReadyForPmAllocation } from '@/components/MaterialIndentsTable';
+import { formatIndentQueueStatus, isInAllocationReview, resolveAllocationReviewStage } from '@/components/MaterialIndentsTable';
 
 /** Title-side / dropdown queue filters. Labels vary by role. */
 export type IndentQueueQuickFilter =
@@ -102,16 +102,23 @@ export function matchesIndentQueueQuickFilter(
     return (request.items || []).some((item) => Number(item.availableToIssueQty || 0) > 0);
   }
   if (filter === 'awaiting-store') {
-    return AWAITING_STORE_STATUSES.has(status) && !isIndentReadyForPmAllocation(request);
+    if (resolveAllocationReviewStage(request) === 'STORE_INCHARGE') return true;
+    return AWAITING_STORE_STATUSES.has(status) && !isInAllocationReview(request);
   }
   if (filter === 'approved-store') {
-    return APPROVED_STORE_STATUSES.has(status) && !isIndentReadyForPmAllocation(request);
+    return APPROVED_STORE_STATUSES.has(status) && !isInAllocationReview(request);
   }
   if (filter === 'pm') {
-    return APPROVED_PM_STATUSES.has(status) && !isIndentReadyForPmAllocation(request);
+    if (resolveAllocationReviewStage(request) === 'PROJECT_MANAGER') return true;
+    return APPROVED_PM_STATUSES.has(status) && !isInAllocationReview(request);
   }
   if (filter === 'executive') {
-    return EXECUTIVE_STATUSES.has(status) || isIndentReadyForPmAllocation(request);
+    const stage = resolveAllocationReviewStage(request);
+    if (stage === 'EXECUTIVE') return true;
+    if (stage === 'PROJECT_MANAGER' || stage === 'STORE_INCHARGE' || stage === 'SITE_INCHARGE') {
+      return false;
+    }
+    return EXECUTIVE_STATUSES.has(status);
   }
   if (filter === 'coordinator') {
     return COORDINATOR_STATUSES.has(status);
@@ -143,7 +150,8 @@ export function matchesIndentSearch(request: MaterialRequestDto, rawQuery: strin
     request.pendingWith,
     request.approverNames,
     request.poStatus,
-    request.pmProceededAllocation
+    request.pmProceededAllocation,
+    request.allocationReviewStage
   );
   const haystack = [
     request.indentNumber,

@@ -16,6 +16,7 @@ import { useTodayActions } from '@/hooks/useTodayActions';
 import { useListQuery, normalizeListData } from '@/hooks/useListQuery';
 import { AgeingBadge, daysSince } from '@/components/ui/AgeingBadge';
 import { Input } from '@/components/ui/Input';
+import { isInAllocationReview } from '@/components/MaterialIndentsTable';
 
 type StockRow = {
   id: string;
@@ -214,7 +215,13 @@ export function StoreHomePage() {
               <div
                 key={r.id}
                 className="data-row"
-                onClick={() => navigate(`/store/allocate/${r.id}`)}
+                onClick={() =>
+                  navigate(
+                    r.status === 'PENDING_STORE' && !isInAllocationReview(r)
+                      ? `/store/allocate/${r.id}`
+                      : `/requests/${r.id}`
+                  )
+                }
               >
                 <div className="min-w-0 flex-1">
                   <p className="font-medium text-ink">{r.indentNumber}</p>

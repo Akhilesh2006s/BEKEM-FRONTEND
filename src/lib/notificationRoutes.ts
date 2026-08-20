@@ -19,7 +19,7 @@ export function getNotificationPath(
 
   if (n.relatedEntityType === 'MaterialRequest') {
     if (role === UserRole.STORE_INCHARGE) {
-      return `/store/allocate/${n.relatedEntityId}`;
+      return `/requests/${n.relatedEntityId}`;
     }
     if (role === UserRole.SITE_INCHARGE) {
       return `/requests/${n.relatedEntityId}`;
@@ -27,7 +27,10 @@ export function getNotificationPath(
     if (role === UserRole.PROJECT_MANAGER) {
       return `/pm/mobile-approve/${n.relatedEntityId}`;
     }
-    if (role === UserRole.EXECUTIVE || role === UserRole.COORDINATOR) {
+    if (role === UserRole.EXECUTIVE) {
+      return `/requests/${n.relatedEntityId}`;
+    }
+    if (role === UserRole.COORDINATOR) {
       return procurementDecisionPath(role, n.relatedEntityId);
     }
     return null;

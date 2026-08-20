@@ -10,7 +10,7 @@ import { Button } from '@/components/ui/Button';
 import { EmptyState } from '@/components/EmptyState';
 import { normalizeListData } from '@/hooks/useListQuery';
 import { cn } from '@/lib/utils';
-import { MaterialIndentsTable, isIndentReadyForPmAllocation } from '@/components/MaterialIndentsTable';
+import { MaterialIndentsTable, isInAllocationReview, isCurrentAllocationOwner } from '@/components/MaterialIndentsTable';
 import { IndentListFilters, IndentQueueQuickButtons } from '@/components/IndentListFilters';
 import { PmDailyCapBanner } from '@/components/PmDailyCapBanner';
 import {
@@ -169,9 +169,6 @@ export function IncidentsPage() {
   );
 
   const renderExecutiveAction = (request: MaterialRequestDto) => {
-    if (isIndentReadyForPmAllocation(request)) {
-      return renderProceedAllocation(request);
-    }
     if (['PENDING_HO', 'PENDING_EXECUTIVE_DECISION'].includes(request.status)) {
       return (
         <Button
@@ -286,8 +283,22 @@ export function IncidentsPage() {
   };
 
   const renderIndentAction = (request: MaterialRequestDto) => {
-    if (isIndentReadyForPmAllocation(request)) {
-      return renderProceedAllocation(request);
+    if (isInAllocationReview(request)) {
+      if (isCurrentAllocationOwner(request, role)) {
+        return renderProceedAllocation(request);
+      }
+      return (
+        <Button variant="ghost" size="sm" onClick={() => navigate(`/requests/${request.id}`)}>
+          View indent
+        </Button>
+      );
+    }
+    if (role === UserRole.SITE_INCHARGE && request.status === 'ISSUED') {
+      return (
+        <Button variant="primary" size="sm" onClick={() => navigate(`/requests/${request.id}`)}>
+          Collect & verify
+        </Button>
+      );
     }
     if (role === UserRole.EXECUTIVE) {
       return renderExecutiveAction(request);
