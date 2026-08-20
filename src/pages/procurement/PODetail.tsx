@@ -334,17 +334,19 @@ export function PODetailPage() {
   const nextStep = getNextStepInfo(po);
   const chairmanThreshold = approvalLimits?.poCoordinatorMaxInr ?? 5000;
   const needsChairmanBand = po.amount > chairmanThreshold;
+  const chairmanHasFinalApproved =
+    po.status === 'APPROVED' && (needsChairmanBand || !!po.approvedAsChairmanOverride);
   const isCoordinator =
     role === UserRole.COORDINATOR &&
     (po.status === 'PENDING_REVIEW' ||
       po.status === 'COORDINATOR_PENDING' ||
       po.status === 'PM_PENDING');
-  const isCoordinatorApproved = role === UserRole.COORDINATOR && po.status === 'APPROVED';
+  const isCoordinatorApproved =
+    role === UserRole.COORDINATOR && po.status === 'APPROVED' && !chairmanHasFinalApproved;
   const canEditPo =
     (role === UserRole.COORDINATOR &&
-      ['PENDING_REVIEW', 'COORDINATOR_PENDING', 'CHAIRMAN_PENDING', 'APPROVED'].includes(
-        po.status
-      )) ||
+      (['PENDING_REVIEW', 'COORDINATOR_PENDING', 'CHAIRMAN_PENDING'].includes(po.status) ||
+        (po.status === 'APPROVED' && !chairmanHasFinalApproved))) ||
     (role === UserRole.CHAIRMAN &&
       ['PENDING_APPROVAL', 'CHAIRMAN_PENDING', 'APPROVED'].includes(po.status));
   const canChairmanEditException =

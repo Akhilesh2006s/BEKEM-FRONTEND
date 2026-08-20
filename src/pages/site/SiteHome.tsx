@@ -199,7 +199,12 @@ export function SiteHomePage() {
                     <td>
                       <StatusBadge
                         status={r.status}
-                        label={formatIndentQueueStatus(r.status, r.pendingWith)}
+                        label={formatIndentQueueStatus(
+                          r.status,
+                          r.pendingWith,
+                          r.approverNames,
+                          r.poStatus
+                        )}
                       />
                     </td>
                     <td className="text-right">

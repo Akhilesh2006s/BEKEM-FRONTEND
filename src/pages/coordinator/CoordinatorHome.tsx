@@ -2,7 +2,7 @@ import { useNavigate } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
 import { ClipboardCheck, HardHat, FileText, FileBarChart2 } from 'lucide-react';
 import { getGreeting } from '@afios/shared';
-import type { PurchaseOrderDto, WorkOrderDto, MaterialRequestDto } from '@afios/shared';
+import type { PurchaseOrderDto, WorkOrderDto, MaterialRequestDto, GrnHoldQueueItemDto } from '@afios/shared';
 import { api } from '@/lib/api';
 import { EmptyState } from '@/components/EmptyState';
 import { ListQueryBoundary } from '@/components/ListQueryBoundary';
@@ -72,8 +72,16 @@ export function CoordinatorHomePage() {
     },
   });
 
+  const { data: grnHoldQueue } = useQuery({
+    queryKey: ['grn-hold-queue', 'coordinator'],
+    queryFn: async () => {
+      const res = await api.get<{ data: GrnHoldQueueItemDto[] }>('/goods-receipts/hold-queue');
+      return res.data.data || [];
+    },
+  });
+
   const pending = queueResult?.count ?? queueResult?.items?.length ?? 0;
-  const woPending = woQueue?.length ?? 0;
+  const woPending = (woQueue?.length ?? 0) + (grnHoldQueue?.length ?? 0);
   const decisionPending = procurementQueue?.length ?? 0;
   const indentsNeedingCoord =
     coordinatorIndents?.filter((r) => r.pendingWith === 'COORDINATOR').length ?? 0;
@@ -130,7 +138,7 @@ export function CoordinatorHomePage() {
           <ActionCard
             title="Pending work orders"
             count={woPending}
-            subtitle={woPending > 0 ? 'WO verification required' : 'Queue clear'}
+            subtitle={woPending > 0 ? 'WO and GRN verification required' : 'Queue clear'}
             icon={HardHat}
             tone="info"
             onClick={() => navigate('/coordinator/verify-wos')}

@@ -14,10 +14,19 @@ function roleLabel(role: UserRole | null | undefined) {
 export function formatIndentQueueStatus(
   status: string,
   _pendingWith?: string,
-  _approverNames?: MaterialRequestDto['approverNames']
+  _approverNames?: MaterialRequestDto['approverNames'],
+  poStatus?: string
 ): string {
   if (['REJECTED', 'CANCELLED', 'COMPLETED', 'CLOSED'].includes(status)) {
     return getStatusLabel(status);
+  }
+
+  if (
+    status === 'CHAIRMAN_APPROVED' ||
+    (poStatus === 'APPROVED' &&
+      !['ALLOCATED', 'MATERIAL_RECEIVED', 'ISSUED'].includes(status))
+  ) {
+    return `Approved by ${roleLabel(UserRole.EXECUTIVE)}`;
   }
 
   switch (status) {
@@ -45,8 +54,6 @@ export function formatIndentQueueStatus(
       return `Approved by ${roleLabel(UserRole.COORDINATOR)}`;
     case 'CHAIRMAN_PENDING':
       return `Approved by ${roleLabel(UserRole.COORDINATOR)}`;
-    case 'CHAIRMAN_APPROVED':
-      return `Approved by ${roleLabel(UserRole.CHAIRMAN)}`;
     case 'MATERIAL_RECEIVED':
       return `Awaiting issue by ${roleLabel(UserRole.STORE_INCHARGE)}`;
     case 'ISSUED':
@@ -54,6 +61,24 @@ export function formatIndentQueueStatus(
     default:
       return getStatusLabel(status);
   }
+}
+
+const CLOSED_FOR_PM_ALLOCATION = new Set([
+  'ALLOCATED',
+  'MATERIAL_RECEIVED',
+  'ISSUED',
+  'COMPLETED',
+  'CLOSED',
+  'REJECTED',
+  'CANCELLED',
+]);
+
+/** Chairman has approved the PO — PM’s next step is Proceed with Allocation. */
+export function isIndentReadyForPmAllocation(request: MaterialRequestDto): boolean {
+  if (request.pmProceededAllocation || CLOSED_FOR_PM_ALLOCATION.has(request.status)) {
+    return false;
+  }
+  return request.status === 'CHAIRMAN_APPROVED' || request.poStatus === 'APPROVED';
 }
 
 type IndentTableRow = {
@@ -95,36 +120,9 @@ function rfqStatusLabel(status?: string, hasPo?: boolean) {
   return status.replace(/_/g, ' ');
 }
 
-function executiveStageLabel(r: MaterialRequestDto): string | null {
-  if (['REJECTED', 'CANCELLED', 'COMPLETED', 'CLOSED', 'ISSUED', 'MATERIAL_RECEIVED'].includes(r.status)) {
-    return null;
-  }
-  if (['PENDING_HO', 'PENDING_EXECUTIVE_DECISION'].includes(r.status)) {
-    return 'Awaiting executive decision';
-  }
-  if (r.status === 'EXECUTIVE_DECISION_BRANCH_TRANSFER') {
-    return 'Branch transfer decided';
-  }
-  if (r.poId) {
-    return r.poStatus
-      ? `PO ${r.poStatus.replace(/_/g, ' ').toLowerCase()}`
-      : 'PO created';
-  }
-  if (r.rfqId) {
-    if (r.rfqStatus === 'FINALIZED') return 'RFQ finalized — create PO';
-    if (r.rfqStatus === 'OPEN') return 'RFQ open — awaiting quotes';
-    return 'RFQ in progress';
-  }
-  if (r.purchaseRequestId) {
-    return 'Ready to create RFQ';
-  }
-  return null;
-}
-
 function toIndentRows(
   requests: MaterialRequestDto[],
-  showReadyToIssue: boolean,
-  useExecutiveStage = false
+  showReadyToIssue: boolean
 ): IndentTableRow[] {
   return requests.map((r) => ({
     requestId: r.id,
@@ -153,8 +151,7 @@ function toIndentRows(
           )
           ? 'Issued to site'
           : 'Partially issued to site'
-        : (useExecutiveStage && executiveStageLabel(r)) ||
-          formatIndentQueueStatus(r.status, r.pendingWith, r.approverNames),
+        : formatIndentQueueStatus(r.status, r.pendingWith, r.approverNames, r.poStatus),
     prNumber: r.prNumber,
     rfqNumber: r.rfqNumber,
     rfqStatus: r.rfqStatus,
@@ -212,7 +209,7 @@ export function MaterialIndentsTable({
 }) {
   const role = useAuthStore((s) => s.user?.role) as UserRole | undefined;
   const showReadyToIssue = role !== UserRole.SITE_INCHARGE;
-  const rows = toIndentRows(requests, showReadyToIssue, showProcurementTrace);
+  const rows = toIndentRows(requests, showReadyToIssue);
   const [expandedRows, setExpandedRows] = useState<Set<string>>(() => new Set());
 
   const toggleDetails = (requestId: string) => {

@@ -85,7 +85,9 @@ export function GrnApprovalsPage() {
                         ? 'Qty variance'
                         : reason === 'EWAY'
                           ? 'E-Way Bill'
-                          : 'Price variance'}
+                          : reason === 'REVIEW'
+                            ? 'New receipt'
+                            : 'Price variance'}
                     </span>
                   ))}
                 </div>

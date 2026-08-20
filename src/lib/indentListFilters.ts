@@ -1,6 +1,6 @@
 import type { MaterialRequestDto } from '@afios/shared';
 import { UserRole } from '@afios/shared';
-import { formatIndentQueueStatus } from '@/components/MaterialIndentsTable';
+import { formatIndentQueueStatus, isIndentReadyForPmAllocation } from '@/components/MaterialIndentsTable';
 
 /** Title-side / dropdown queue filters. Labels vary by role. */
 export type IndentQueueQuickFilter =
@@ -42,14 +42,15 @@ const COORDINATOR_STATUSES = new Set([
   'PENDING_REVIEW',
   'COORDINATOR_VERIFIED',
 ]);
-const CHAIRMAN_STATUSES = new Set(['CHAIRMAN_PENDING', 'CHAIRMAN_APPROVED']);
-/** Executive desk after PM — procurement / RFQ / PO path. */
+const CHAIRMAN_STATUSES = new Set(['CHAIRMAN_PENDING']);
+/** Executive desk after PM — procurement / RFQ / PO path, including Chairman-approved POs. */
 const EXECUTIVE_STATUSES = new Set([
   'PURCHASE_REQUESTED',
   'RFQ_OPEN',
   'QUOTED',
   'VENDOR_SELECTED',
   'PO_CREATED',
+  'CHAIRMAN_APPROVED',
   'EXECUTIVE_DECISION_PO',
   'EXECUTIVE_DECISION_BRANCH_TRANSFER',
 ]);
@@ -110,7 +111,10 @@ export function matchesIndentQueueQuickFilter(
     return APPROVED_PM_STATUSES.has(status);
   }
   if (filter === 'executive') {
-    return EXECUTIVE_STATUSES.has(status);
+    return (
+      EXECUTIVE_STATUSES.has(status) ||
+      (request.poStatus === 'APPROVED' && isIndentReadyForPmAllocation(request))
+    );
   }
   if (filter === 'coordinator') {
     return COORDINATOR_STATUSES.has(status);
@@ -137,7 +141,12 @@ export function matchesIndentSearch(request: MaterialRequestDto, rawQuery: strin
   const q = rawQuery.trim().toLowerCase();
   if (!q) return true;
 
-  const statusLabel = formatIndentQueueStatus(request.status, request.pendingWith);
+  const statusLabel = formatIndentQueueStatus(
+    request.status,
+    request.pendingWith,
+    request.approverNames,
+    request.poStatus
+  );
   const haystack = [
     request.indentNumber,
     request.requestedByName,

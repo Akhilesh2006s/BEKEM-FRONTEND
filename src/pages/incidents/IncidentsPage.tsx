@@ -10,7 +10,7 @@ import { Button } from '@/components/ui/Button';
 import { EmptyState } from '@/components/EmptyState';
 import { normalizeListData } from '@/hooks/useListQuery';
 import { cn } from '@/lib/utils';
-import { MaterialIndentsTable } from '@/components/MaterialIndentsTable';
+import { MaterialIndentsTable, isIndentReadyForPmAllocation } from '@/components/MaterialIndentsTable';
 import { IndentListFilters, IndentQueueQuickButtons } from '@/components/IndentListFilters';
 import { PmDailyCapBanner } from '@/components/PmDailyCapBanner';
 import {
@@ -158,7 +158,20 @@ export function IncidentsPage() {
     patchParams({ q: value.trim() || undefined });
   };
 
+  const renderProceedAllocation = (request: MaterialRequestDto) => (
+    <Button
+      variant="primary"
+      size="sm"
+      onClick={() => navigate(`/requests/${request.id}`)}
+    >
+      Proceed with Allocation
+    </Button>
+  );
+
   const renderExecutiveAction = (request: MaterialRequestDto) => {
+    if (isIndentReadyForPmAllocation(request)) {
+      return renderProceedAllocation(request);
+    }
     if (['PENDING_HO', 'PENDING_EXECUTIVE_DECISION'].includes(request.status)) {
       return (
         <Button
@@ -267,6 +280,37 @@ export function IncidentsPage() {
         size="sm"
         onClick={() => navigate(`/requests/${request.id}`)}
       >
+        View indent
+      </Button>
+    );
+  };
+
+  const renderIndentAction = (request: MaterialRequestDto) => {
+    if (isIndentReadyForPmAllocation(request)) {
+      return renderProceedAllocation(request);
+    }
+    if (role === UserRole.EXECUTIVE) {
+      return renderExecutiveAction(request);
+    }
+    if (role === UserRole.STORE_INCHARGE && request.status === 'PENDING_STORE') {
+      return (
+        <Button variant="primary" size="sm" onClick={() => navigate(`/store/allocate/${request.id}`)}>
+          Review & allocate
+        </Button>
+      );
+    }
+    if (
+      role === UserRole.PROJECT_MANAGER &&
+      ['FORWARDED_TO_PM', 'BRANCH_TRANSFER_REQUESTED'].includes(request.status)
+    ) {
+      return (
+        <Button variant="primary" size="sm" onClick={() => navigate(`/requests/${request.id}`)}>
+          Review & decide
+        </Button>
+      );
+    }
+    return (
+      <Button variant="ghost" size="sm" onClick={() => navigate(`/requests/${request.id}`)}>
         View indent
       </Button>
     );
@@ -409,9 +453,7 @@ export function IncidentsPage() {
         <MaterialIndentsTable
           requests={filtered}
           showProcurementTrace={role === UserRole.EXECUTIVE}
-          renderAction={
-            role === UserRole.EXECUTIVE ? renderExecutiveAction : undefined
-          }
+          renderAction={renderIndentAction}
           onRowClick={(id) => {
             const row = filtered.find((r) => r.id === id);
             if (role === UserRole.STORE_INCHARGE && row?.status === 'PENDING_STORE') {

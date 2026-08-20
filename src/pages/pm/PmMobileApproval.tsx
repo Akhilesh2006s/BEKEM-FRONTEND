@@ -10,6 +10,7 @@ import { Button } from '@/components/ui/Button';
 import { PageHeader } from '@/components/layout/PageHeader';
 import { ListQueryBoundary } from '@/components/ListQueryBoundary';
 import { StatusBadge } from '@/components/ui/StatusBadge';
+import { isIndentReadyForPmAllocation } from '@/components/MaterialIndentsTable';
 
 export function PmMobileApprovalPage() {
   const { id } = useParams<{ id: string }>();
@@ -30,6 +31,7 @@ export function PmMobileApprovalPage() {
     request?.status === 'FORWARDED_TO_PM' && !stockAvailable;
   const showApprove =
     request?.status === 'FORWARDED_TO_PM' && stockAvailable;
+  const showProceedAllocation = Boolean(request && isIndentReadyForPmAllocation(request));
   const closesAtPm = stockAvailable;
 
   const approve = useMutation({
@@ -80,6 +82,27 @@ export function PmMobileApprovalPage() {
     },
   });
 
+  const proceedAllocation = useMutation({
+    mutationFn: async () => {
+      const ok = await requireBiometricConfirm('Proceed with allocation');
+      if (!ok) throw new Error('Biometric confirmation cancelled');
+      await api.post(`/material-requests/${id}/pm-proceed-allocation`, {
+        remark: 'Proceeded with allocation after Executive / Chairman approval',
+      });
+    },
+    onSuccess: () => {
+      toast.success('Proceeded with allocation');
+      queryClient.invalidateQueries({ queryKey: ['pm-approvals'] });
+      queryClient.invalidateQueries({ queryKey: ['material-requests'] });
+      navigate('/pm/material-indents?tab=pending&queue=executive');
+    },
+    onError: (e: Error & { response?: { data?: { message?: string } } }) => {
+      if (e.message !== 'Biometric confirmation cancelled') {
+        toast.error(e.response?.data?.message || e.message || 'Allocation failed');
+      }
+    },
+  });
+
   const reject = useMutation({
     mutationFn: async () => {
       const ok = await requireBiometricConfirm('Reject indent');
@@ -111,7 +134,7 @@ export function PmMobileApprovalPage() {
         ]
       : [];
 
-  const busy = approve.isPending || forwardHo.isPending || reject.isPending;
+  const busy = approve.isPending || forwardHo.isPending || reject.isPending || proceedAllocation.isPending;
 
   return (
     <div className="min-h-[100dvh] bg-surface-muted px-4 py-6 max-w-lg mx-auto">
@@ -188,6 +211,18 @@ export function PmMobileApprovalPage() {
                 >
                   <Send className="h-5 w-5 mr-2" />
                   Forward to HO for Stock Procurement
+                </Button>
+              )}
+              {showProceedAllocation && (
+                <Button
+                  variant="accent"
+                  size="lg"
+                  className="h-14"
+                  disabled={busy}
+                  onClick={() => proceedAllocation.mutate()}
+                >
+                  <Check className="h-5 w-5 mr-2" />
+                  Proceed with Allocation
                 </Button>
               )}
               <Button

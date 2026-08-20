@@ -124,9 +124,9 @@ const STATUS_LABELS: Record<string, string> = {
   RFQ_OPEN: 'Approved by Executive',
   QUOTED: 'Approved by Executive',
   VENDOR_SELECTED: 'Approved by Executive',
-  PO_CREATED: 'PO created',
+  PO_CREATED: 'Approved by Executive',
   COORDINATOR_VERIFIED: 'Approved by Coordinator',
-  CHAIRMAN_APPROVED: 'Approved by Chairman',
+  CHAIRMAN_APPROVED: 'Approved by Executive',
   REJECTED: 'Rejected',
   CANCELLED: 'Cancelled',
   /** PO / WO: previous step done, waiting on Chairman */

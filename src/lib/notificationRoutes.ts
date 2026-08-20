@@ -68,5 +68,11 @@ export function getNotificationPath(
     return null;
   }
 
+  if (n.relatedEntityType === 'GoodsReceiptNote') {
+    if (role === UserRole.COORDINATOR) return '/coordinator/verify-wos';
+    if (role === UserRole.CHAIRMAN) return '/chairman/approve-wos';
+    return null;
+  }
+
   return null;
 }
