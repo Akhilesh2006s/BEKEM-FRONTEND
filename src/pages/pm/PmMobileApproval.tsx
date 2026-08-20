@@ -84,21 +84,21 @@ export function PmMobileApprovalPage() {
 
   const proceedAllocation = useMutation({
     mutationFn: async () => {
-      const ok = await requireBiometricConfirm('Proceed with allocation');
+      const ok = await requireBiometricConfirm('Final review');
       if (!ok) throw new Error('Biometric confirmation cancelled');
       await api.post(`/material-requests/${id}/pm-proceed-allocation`, {
-        remark: 'Proceeded with allocation after Executive / Chairman approval',
+        remark: 'Final review after Executive / Chairman approval',
       });
     },
     onSuccess: () => {
-      toast.success('Proceeded with allocation');
+      toast.success('Final review completed');
       queryClient.invalidateQueries({ queryKey: ['pm-approvals'] });
       queryClient.invalidateQueries({ queryKey: ['material-requests'] });
       navigate('/pm/material-indents?tab=pending&queue=executive');
     },
     onError: (e: Error & { response?: { data?: { message?: string } } }) => {
       if (e.message !== 'Biometric confirmation cancelled') {
-        toast.error(e.response?.data?.message || e.message || 'Allocation failed');
+        toast.error(e.response?.data?.message || e.message || 'Final review failed');
       }
     },
   });
@@ -222,7 +222,7 @@ export function PmMobileApprovalPage() {
                   onClick={() => proceedAllocation.mutate()}
                 >
                   <Check className="h-5 w-5 mr-2" />
-                  Proceed with Allocation
+                  Final review
                 </Button>
               )}
               <Button

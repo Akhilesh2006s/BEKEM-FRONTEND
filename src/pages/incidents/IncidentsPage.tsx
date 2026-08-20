@@ -164,7 +164,7 @@ export function IncidentsPage() {
       size="sm"
       onClick={() => navigate(`/requests/${request.id}`)}
     >
-      Proceed with Allocation
+      Final review
     </Button>
   );
 

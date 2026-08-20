@@ -73,7 +73,7 @@ const CLOSED_FOR_PM_ALLOCATION = new Set([
   'CANCELLED',
 ]);
 
-/** Chairman has approved the PO — PM’s next step is Proceed with Allocation. */
+/** Chairman has approved the PO — PM’s next step is Final review. */
 export function isIndentReadyForPmAllocation(request: MaterialRequestDto): boolean {
   if (request.pmProceededAllocation || CLOSED_FOR_PM_ALLOCATION.has(request.status)) {
     return false;

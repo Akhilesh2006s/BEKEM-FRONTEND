@@ -160,8 +160,8 @@ export function RequestDetailPage() {
     onSuccess: (data) => {
       toast.success(
         data.status === 'ALLOCATED'
-          ? 'Allocation complete — stock reserved for Store to issue'
-          : 'Proceeded with allocation after Executive approval'
+          ? 'Final review complete — stock reserved for Store to issue'
+          : 'Final review completed after Executive approval'
       );
       setPmRemark('');
       queryClient.invalidateQueries({ queryKey: ['material-request', id] });
@@ -169,7 +169,7 @@ export function RequestDetailPage() {
       queryClient.invalidateQueries({ queryKey: ['pm-approvals'] });
     },
     onError: (err: Error & { response?: { data?: { message?: string } } }) => {
-      toast.error(err.response?.data?.message || 'Could not proceed with allocation');
+      toast.error(err.response?.data?.message || 'Could not complete final review');
     },
   });
 
@@ -864,10 +864,10 @@ export function RequestDetailPage() {
 
       {canPmProceedAllocation && (
         <div className="mb-3 panel p-3">
-          <p className="text-sm font-semibold text-ink">Proceed with allocation</p>
+          <p className="text-sm font-semibold text-ink">Final review</p>
           <p className="text-xs text-ink-secondary mt-1">
-            Chairman has approved this purchase order. Status is Approved by Executive — confirm
-            allocation so Store can issue when stock is ready.
+            Chairman has approved this purchase order. Status is Approved by Executive — complete
+            final review so Store can issue when stock is ready.
           </p>
           <div className="mt-3">
             <label className="text-sm font-medium text-ink-secondary block mb-2">
@@ -879,7 +879,7 @@ export function RequestDetailPage() {
                 setPmRemark(e.target.value);
                 if (e.target.value.trim()) setPmRemarkError('');
               }}
-              placeholder="Confirm allocation after Executive / Chairman approval…"
+              placeholder="Final review remark after Executive / Chairman approval…"
             />
             {pmRemarkError && <p className="text-xs text-danger mt-1">{pmRemarkError}</p>}
           </div>
@@ -893,7 +893,7 @@ export function RequestDetailPage() {
               pmProceedAllocation.mutate(pmRemark.trim());
             }}
           >
-            Proceed with Allocation
+            Final review
           </Button>
         </div>
       )}
