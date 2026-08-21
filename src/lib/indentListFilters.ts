@@ -106,10 +106,14 @@ export function matchesIndentQueueQuickFilter(
     return AWAITING_STORE_STATUSES.has(status) && !isInAllocationReview(request);
   }
   if (filter === 'approved-store') {
+    if (status === 'ALLOCATED' && request.allocatedByRole && request.allocatedByRole !== 'STORE_INCHARGE') {
+      return false;
+    }
     return APPROVED_STORE_STATUSES.has(status) && !isInAllocationReview(request);
   }
   if (filter === 'pm') {
     if (resolveAllocationReviewStage(request) === 'PROJECT_MANAGER') return true;
+    if (status === 'ALLOCATED' && request.allocatedByRole === 'PROJECT_MANAGER') return true;
     return APPROVED_PM_STATUSES.has(status) && !isInAllocationReview(request);
   }
   if (filter === 'executive') {
@@ -121,6 +125,7 @@ export function matchesIndentQueueQuickFilter(
     return EXECUTIVE_STATUSES.has(status);
   }
   if (filter === 'coordinator') {
+    if (status === 'ALLOCATED' && request.allocatedByRole === 'COORDINATOR') return true;
     return COORDINATOR_STATUSES.has(status);
   }
   if (filter === 'chairman') {
@@ -151,7 +156,8 @@ export function matchesIndentSearch(request: MaterialRequestDto, rawQuery: strin
     request.approverNames,
     request.poStatus,
     request.pmProceededAllocation,
-    request.allocationReviewStage
+    request.allocationReviewStage,
+    request.allocatedByRole
   );
   const haystack = [
     request.indentNumber,

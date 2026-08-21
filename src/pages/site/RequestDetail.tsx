@@ -36,6 +36,7 @@ import {
   takeKey,
   buildBatchSources,
 } from '@/components/CrossProjectStockPanel';
+import { StockAcrossProjectsDropdown } from '@/components/StockAcrossProjectsDropdown';
 import { PmDailyCapBanner, CoordinatorDailyCapBanner } from '@/components/PmDailyCapBanner';
 import { useApprovalShortcuts } from '@/hooks/useApprovalShortcuts';
 import { DetailField, DetailFieldGrid } from '@/components/ui/DetailFields';
@@ -88,6 +89,16 @@ export function RequestDetailPage() {
       return res.data.data;
     },
     enabled: role === UserRole.COORDINATOR,
+    refetchInterval: 30_000,
+  });
+
+  const { data: pmDailyCap } = useQuery({
+    queryKey: ['pm-daily-cap'],
+    queryFn: async () => {
+      const res = await api.get<{ data: DailyCapDto }>('/material-requests/pm/daily-cap');
+      return res.data.data;
+    },
+    enabled: role === UserRole.PROJECT_MANAGER,
     refetchInterval: 30_000,
   });
 
@@ -356,7 +367,13 @@ export function RequestDetailPage() {
   const showPmDecisionPanel = Boolean(
     pmCanActOnIndent && (showPmApprove || remainingAfterExisting > 0)
   );
-  const pmApproveClosesAtPm = stockAvailable;
+  /** Stock alone isn't enough for above-cap indents — the PM's daily cap must also allow it. */
+  const wouldExceedPmCap = Boolean(
+    !isBelowCap &&
+      pmDailyCap &&
+      pmDailyCap.dailyApprovedTotal + (request?.estimatedValue || 0) > pmDailyCap.dailyCap
+  );
+  const pmApproveClosesAtPm = stockAvailable && !wouldExceedPmCap;
 
   useApprovalShortcuts({
     enabled: showPmApprove && !isLoading,
@@ -486,7 +503,8 @@ export function RequestDetailPage() {
               request.approverNames,
               request.poStatus,
               request.pmProceededAllocation,
-              request.allocationReviewStage
+              request.allocationReviewStage,
+              request.allocatedByRole
             )}
             className="mt-1"
           />
@@ -510,7 +528,7 @@ export function RequestDetailPage() {
         </p>
       )}
 
-      {canPmDecide && !isBelowCap && showPmApprove && <PmDailyCapBanner />}
+      {canPmDecide && !isBelowCap && showPmApprove && <PmDailyCapBanner cap={pmDailyCap} />}
 
       {canCoordinatorLocalClose && <CoordinatorDailyCapBanner cap={coordinatorCap} />}
 
@@ -825,6 +843,10 @@ export function RequestDetailPage() {
         </>
       ) : null}
 
+      {role === UserRole.PROJECT_MANAGER && (
+        <StockAcrossProjectsDropdown excludeProjectId={request.projectId} className="mb-3" />
+      )}
+
       {role === UserRole.PROJECT_MANAGER && (request.linkedBranchTransfers?.length || 0) > 0 ? (
         <Card className="mb-3 p-4 space-y-2">
           <p className="text-sm font-semibold text-ink">Branch transfers on this indent</p>
@@ -949,7 +971,9 @@ export function RequestDetailPage() {
                         ? `Below ₹5,000 — ${remainingAfterExisting} still needed. Forward remaining to Head Office for procurement.`
                         : 'Below ₹5,000 and stock is short — Forward to Head Office for procurement.'
                   : stockAvailable
-                    ? 'Stock is available at site — Approve to close at PM and reserve allocation so Store can issue.'
+                    ? wouldExceedPmCap
+                      ? `Stock is available, but your ₹${(pmDailyCap?.dailyCap ?? 5000).toLocaleString('en-IN')}/day approval cap is reached — Approve to forward this indent to Head Office instead of closing at PM.`
+                      : 'Stock is available at site — Approve to close at PM and reserve allocation so Store can issue.'
                     : showBranchTransfer
                       ? `This site is short. Take qty from one or more assigned projects (currently ${totalTaking} of ${remainingAfterExisting}). Remaining ${remainingAfterTakes} can still go to Head Office.`
                       : remainingAfterExisting > 0

@@ -1,6 +1,6 @@
 import { useState } from 'react';
 
-import { useNavigate, useParams } from 'react-router-dom';
+import { Link, useNavigate, useParams } from 'react-router-dom';
 
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 
@@ -499,6 +499,38 @@ export function ProcurementDecisionDetailPage({ listPath }: ProcurementDecisionD
             </div>
 
 
+
+            {decision.linkedBranchTransfers && decision.linkedBranchTransfers.length > 0 && (
+              <Card className="mb-3 space-y-2">
+                <p className="text-sm font-semibold text-ink">Branch transfer requested by PM</p>
+                <p className="text-xs text-ink-secondary">
+                  The PM has already requested stock from another project for this indent.
+                </p>
+                <ul className="space-y-2">
+                  {decision.linkedBranchTransfers.map((t) => (
+                    <li key={t.id}>
+                      <Link
+                        to={`/branch-transfers/${t.id}`}
+                        className="flex items-start justify-between gap-3 rounded-xl border border-surface-border px-3 py-2 text-sm hover:bg-surface-muted/50"
+                      >
+                        <div className="min-w-0">
+                          <p className="font-medium text-ink">{t.transferNumber}</p>
+                          <p className="text-xs text-ink-secondary">
+                            {[t.fromProjectName, t.fromSite].filter(Boolean).join(' · ') || 'Source site'}
+                            {t.items?.length
+                              ? ` · ${t.items.map((item) => `${item.quantity} ${item.materialName || ''}`.trim()).join(', ')}`
+                              : ''}
+                          </p>
+                        </div>
+                        <span className="text-xs font-medium text-ink-muted shrink-0">
+                          {t.status.replace(/_/g, ' ')}
+                        </span>
+                      </Link>
+                    </li>
+                  ))}
+                </ul>
+              </Card>
+            )}
 
             {decision.purchaseRequestId && decision.status === 'PURCHASE_REQUESTED' && (
 

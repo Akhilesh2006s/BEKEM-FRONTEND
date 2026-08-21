@@ -4,7 +4,7 @@ import { Check, Fingerprint, Send, X } from 'lucide-react';
 import { toast } from 'sonner';
 import { api } from '@/lib/api';
 import { requireBiometricConfirm } from '@/lib/biometricGate';
-import type { MaterialRequestDto } from '@afios/shared';
+import type { DailyCapDto, MaterialRequestDto } from '@afios/shared';
 import { formatProjectLabel } from '@afios/shared';
 import { Button } from '@/components/ui/Button';
 import { PageHeader } from '@/components/layout/PageHeader';
@@ -26,7 +26,22 @@ export function PmMobileApprovalPage() {
     enabled: Boolean(id),
   });
 
+  const { data: pmDailyCap } = useQuery({
+    queryKey: ['pm-daily-cap'],
+    queryFn: async () => {
+      const res = await api.get<{ data: DailyCapDto }>('/material-requests/pm/daily-cap');
+      return res.data.data;
+    },
+  });
+
   const stockAvailable = Boolean(request?.canFullyIssue);
+  const isBelowCap = request?.indentRequestType === 'BELOW_5000';
+  /** Stock alone isn't enough for above-cap indents — the PM's daily cap must also allow it. */
+  const wouldExceedPmCap = Boolean(
+    !isBelowCap &&
+      pmDailyCap &&
+      pmDailyCap.dailyApprovedTotal + (request?.estimatedValue || 0) > pmDailyCap.dailyCap
+  );
   const showForwardToHo =
     request?.status === 'FORWARDED_TO_PM' && !stockAvailable;
   const showApprove =
@@ -34,7 +49,7 @@ export function PmMobileApprovalPage() {
   const showProceedAllocation = Boolean(
     request && isInAllocationReview(request) && isCurrentAllocationOwner(request, 'PROJECT_MANAGER')
   );
-  const closesAtPm = stockAvailable;
+  const closesAtPm = stockAvailable && !wouldExceedPmCap;
 
   const approve = useMutation({
     mutationFn: async () => {
@@ -42,18 +57,15 @@ export function PmMobileApprovalPage() {
         closesAtPm ? 'Close indent at PM' : 'Approve indent'
       );
       if (!ok) throw new Error('Biometric confirmation cancelled');
-      await api.post(`/material-requests/${id}/pm-local-close`, {
+      const res = await api.post<{ message?: string }>(`/material-requests/${id}/pm-local-close`, {
         remark: closesAtPm
           ? 'Closed at PM — stock available'
           : 'Approved',
       });
+      return res.data.message;
     },
-    onSuccess: () => {
-      toast.success(
-        closesAtPm
-          ? 'Closed at PM — stock reserved'
-          : 'Approved'
-      );
+    onSuccess: (message) => {
+      toast.success(message || (closesAtPm ? 'Closed at PM — stock reserved' : 'Approved'));
       queryClient.invalidateQueries({ queryKey: ['pm-approvals'] });
       navigate('/pm/material-indents?tab=pending&queue=approved-store');
     },
@@ -178,7 +190,11 @@ export function PmMobileApprovalPage() {
                   <dt className="text-ink-muted text-xs uppercase tracking-wide">Requested by</dt>
                   <dd className="font-medium">{request.requester?.name || '—'}</dd>
                 </div>
-                {stockAvailable ? (
+                {stockAvailable && wouldExceedPmCap ? (
+                  <div className="text-amber-800 text-xs font-medium bg-amber-50 rounded-lg px-3 py-2">
+                    Stock available, but daily approval cap is reached — Approve to forward to HO
+                  </div>
+                ) : stockAvailable ? (
                   <div className="text-emerald-700 text-xs font-medium bg-emerald-50 rounded-lg px-3 py-2">
                     Stock available — Approve to close at PM and reserve for issue
                   </div>

@@ -71,7 +71,8 @@ export function formatIndentQueueStatus(
   _approverNames?: MaterialRequestDto['approverNames'],
   poStatus?: string,
   pmProceededAllocation?: boolean,
-  allocationReviewStage?: MaterialRequestDto['allocationReviewStage']
+  allocationReviewStage?: MaterialRequestDto['allocationReviewStage'],
+  allocatedByRole?: MaterialRequestDto['allocatedByRole']
 ): string {
   if (['REJECTED', 'CANCELLED', 'COMPLETED', 'CLOSED'].includes(status)) {
     return getStatusLabel(status);
@@ -100,6 +101,9 @@ export function formatIndentQueueStatus(
     case 'PENDING_STORE':
       return `Awaiting ${roleLabel(UserRole.STORE_INCHARGE)}`;
     case 'ALLOCATED':
+      if (allocatedByRole === UserRole.PROJECT_MANAGER) return 'Locally Approved by PM';
+      if (allocatedByRole === UserRole.COORDINATOR) return 'Locally Approved by Coordinator';
+      return `Approved by ${roleLabel(UserRole.STORE_INCHARGE)}`;
     case 'FORWARDED_TO_PM':
     case 'BRANCH_TRANSFER_REQUESTED':
       return `Approved by ${roleLabel(UserRole.STORE_INCHARGE)}`;
@@ -211,7 +215,8 @@ function toIndentRows(
             r.approverNames,
             r.poStatus,
             r.pmProceededAllocation,
-            r.allocationReviewStage
+            r.allocationReviewStage,
+            r.allocatedByRole
           ),
     prNumber: r.prNumber,
     rfqNumber: r.rfqNumber,

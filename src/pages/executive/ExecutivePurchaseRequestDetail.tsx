@@ -1,10 +1,10 @@
-import { useState, useEffect } from 'react';
-import { useNavigate, useParams } from 'react-router-dom';
+import { useState } from 'react';
+import { Link, useNavigate, useParams } from 'react-router-dom';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { ArrowLeft } from 'lucide-react';
 import { toast } from 'sonner';
 import { formatCurrency, formatDate, ROLE_COLORS, ROLE_LABELS, UserRole, formatProjectLabel } from '@afios/shared';
-import type { PurchaseRequestDto } from '@afios/shared';
+import type { MaterialRequestDto, PurchaseRequestDto } from '@afios/shared';
 import { api } from '@/lib/api';
 import { Card } from '@/components/ui/Card';
 import { Button } from '@/components/ui/Button';
@@ -33,7 +33,6 @@ export function ExecutivePurchaseRequestDetailPage() {
   const queryClient = useQueryClient();
   const accent = ROLE_COLORS[UserRole.EXECUTIVE].primary;
 
-  const [method, setMethod] = useState<'PURCHASE_ORDER' | 'BRANCH_TRANSFER'>('PURCHASE_ORDER');
   const [remark, setRemark] = useState('');
 
   const { data: pr, isLoading, isError, refetch, isFetching } = useQuery({
@@ -45,33 +44,34 @@ export function ExecutivePurchaseRequestDetailPage() {
     enabled: !!id,
   });
 
-  useEffect(() => {
-    if (pr?.executiveRecommendation) {
-      setMethod(pr.executiveRecommendation);
-    }
-  }, [pr?.executiveRecommendation]);
+  const materialRequestId = pr?.materialRequestId || pr?.materialRequest?.id;
+  const { data: linkedIndent } = useQuery({
+    queryKey: ['material-request', materialRequestId],
+    queryFn: async () => {
+      const res = await api.get<{ data: MaterialRequestDto }>(`/material-requests/${materialRequestId}`);
+      return res.data.data;
+    },
+    enabled: !!materialRequestId,
+  });
+  const pmBranchTransfers = linkedIndent?.linkedBranchTransfers ?? [];
 
   const executiveDecide = useMutation({
     mutationFn: async () => {
       const res = await api.post<{ data: PurchaseRequestDto }>(
         `/purchase-requests/${id}/executive-decide`,
-        { method, remark: remark.trim() }
+        { method: 'PURCHASE_ORDER', remark: remark.trim() }
       );
       return res.data.data;
     },
     onSuccess: (data) => {
-      toast.success(
-        method === 'PURCHASE_ORDER'
-          ? 'Queued for RFQ — invite vendors and compare quotes'
-          : 'Branch transfer recommendation sent to Coordinator'
-      );
+      toast.success('Queued for RFQ — invite vendors and compare quotes');
       setRemark('');
       queryClient.invalidateQueries({ queryKey: ['purchase-request', id] });
       queryClient.invalidateQueries({ queryKey: ['executive-purchase-requests'] });
       queryClient.invalidateQueries({ queryKey: ['purchase-requests', 'ready-for-rfq'] });
       queryClient.invalidateQueries({ queryKey: ['dashboard-widgets'] });
       queryClient.invalidateQueries({ queryKey: ['executive-rfqs'] });
-      if (method === 'PURCHASE_ORDER' && data.id) {
+      if (data.id) {
         navigate(`/executive/rfq/new?purchaseRequestId=${data.id}`);
       }
     },
@@ -184,44 +184,44 @@ export function ExecutivePurchaseRequestDetailPage() {
               </table>
             </Card>
 
+            {pmBranchTransfers.length > 0 && (
+              <Card className="space-y-2 mb-3">
+                <h2 className="font-semibold text-ink">Branch transfer requested by PM</h2>
+                <p className="text-xs text-ink-secondary">
+                  The PM has already requested stock from another project for this indent.
+                </p>
+                <ul className="space-y-2">
+                  {pmBranchTransfers.map((t) => (
+                    <li key={t.id}>
+                      <Link
+                        to={`/branch-transfers/${t.id}`}
+                        className="flex items-start justify-between gap-3 rounded-xl border border-surface-border px-3 py-2 text-sm hover:bg-surface-muted/50"
+                      >
+                        <div className="min-w-0">
+                          <p className="font-medium text-ink">{t.transferNumber}</p>
+                          <p className="text-xs text-ink-secondary">
+                            {[t.fromProjectName, t.fromSite].filter(Boolean).join(' · ') || 'Source site'}
+                            {t.items?.length
+                              ? ` · ${t.items.map((item) => `${item.quantity} ${item.materialName || ''}`.trim()).join(', ')}`
+                              : ''}
+                          </p>
+                        </div>
+                        <span className="text-xs font-medium text-ink-muted shrink-0">
+                          {t.status.replace(/_/g, ' ')}
+                        </span>
+                      </Link>
+                    </li>
+                  ))}
+                </ul>
+              </Card>
+            )}
+
             {canDecide && (
               <Card className="space-y-3 mb-3">
                 <h2 className="font-semibold text-ink">Procurement decision</h2>
                 <p className="text-sm text-ink-secondary">
-                  Prepare your recommendation — this does not final-approve the request.
+                  Queue this request for RFQ — this does not final-approve the request.
                 </p>
-                <div className="grid sm:grid-cols-2 gap-2">
-                  <label className="flex items-start gap-3 rounded-xl border border-surface-border p-3 cursor-pointer hover:border-bekem-accent/40">
-                    <input
-                      type="radio"
-                      name="exec-pr-method"
-                      checked={method === 'PURCHASE_ORDER'}
-                      onChange={() => setMethod('PURCHASE_ORDER')}
-                      className="mt-1"
-                    />
-                    <div>
-                      <p className="font-medium text-ink">Create RFQ (purchase order path)</p>
-                      <p className="text-xs text-ink-secondary mt-0.5">
-                        Invite vendors, compare quotes, then raise PO from the winning vendor
-                      </p>
-                    </div>
-                  </label>
-                  <label className="flex items-start gap-3 rounded-xl border border-surface-border p-3 cursor-pointer hover:border-bekem-accent/40">
-                    <input
-                      type="radio"
-                      name="exec-pr-method"
-                      checked={method === 'BRANCH_TRANSFER'}
-                      onChange={() => setMethod('BRANCH_TRANSFER')}
-                      className="mt-1"
-                    />
-                    <div>
-                      <p className="font-medium text-ink">Recommend branch transfer</p>
-                      <p className="text-xs text-ink-secondary mt-0.5">
-                        Suggest fulfilling from another project&apos;s stock
-                      </p>
-                    </div>
-                  </label>
-                </div>
                 <div>
                   <label className="text-xs font-semibold text-ink-muted mb-1 block">Remark</label>
                   <Textarea
@@ -239,11 +239,7 @@ export function ExecutivePurchaseRequestDetailPage() {
                   disabled={executiveDecide.isPending}
                   onClick={() => executiveDecide.mutate()}
                 >
-                  {executiveDecide.isPending
-                    ? 'Saving…'
-                    : method === 'PURCHASE_ORDER'
-                      ? 'Record & create RFQ'
-                      : 'Recommend branch transfer'}
+                  {executiveDecide.isPending ? 'Saving…' : 'Record & create RFQ'}
                 </Button>
               </Card>
             )}

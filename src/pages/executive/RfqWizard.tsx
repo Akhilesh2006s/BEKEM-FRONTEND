@@ -19,7 +19,6 @@ import { Card } from '@/components/ui/Card';
 import { Input } from '@/components/ui/Input';
 import { StepIndicator } from '@/components/StepIndicator';
 import { EmptyState } from '@/components/EmptyState';
-import { PoWizardStockPanel } from '@/components/PoWizardStockPanel';
 import {
   VendorQuotationEditor,
   type VendorQuotationDraft,
@@ -94,15 +93,6 @@ export function RfqWizardPage() {
     enabled: Boolean(preselectedPrId && !preselectedFromList),
   });
   const quantity = comparison?.quantity ?? 1;
-  const materialIds = useMemo(() => {
-    if (!selectedMr) return [];
-    return (
-      selectedMr.items?.map((i) => i.materialId || i.material?.id).filter(Boolean) ||
-      (selectedMr.materialId || selectedMr.material?.id
-        ? [selectedMr.materialId || selectedMr.material?.id]
-        : [])
-    ) as string[];
-  }, [selectedMr]);
 
   const indentLines = useMemo(() => {
     if (!selectedMr?.items?.length) return [];
@@ -167,7 +157,17 @@ export function RfqWizardPage() {
       setRfqId(data.rfqId);
       setRfqNumber(data.rfqNumber);
       setComparison(data);
-      setDrafts(draftsFromComparison(data));
+      // Merge rather than overwrite: preserve vendors the user already picked in this
+      // session (not yet saved) when re-entering this step after going back.
+      setDrafts((prev) => {
+        const fresh = draftsFromComparison(data);
+        if (!prev.length) return fresh;
+        const byVendor = new Map(fresh.map((d) => [d.vendorId, d]));
+        for (const draft of prev) {
+          if (!byVendor.has(draft.vendorId)) byVendor.set(draft.vendorId, draft);
+        }
+        return Array.from(byVendor.values());
+      });
       setStep(2);
     },
     onError: (e: Error & { response?: { data?: { message?: string } } }) => {
@@ -354,11 +354,6 @@ export function RfqWizardPage() {
                 RFQ for {selectedPr.prNumber}
                 {selectedMr?.indentNumber ? ` · Indent ${selectedMr.indentNumber}` : ''}
               </p>
-              <PoWizardStockPanel
-                materialIds={materialIds}
-                requestingProjectId={selectedPr.projectId || selectedMr?.projectId}
-                className="mb-3"
-              />
               <p className="text-xs text-ink-secondary mb-2">
                 Skip materials already covered by stock. Only included lines go into vendor RFQs
                 (shortfall qty). You can Include a skipped line if you still want to procure it.

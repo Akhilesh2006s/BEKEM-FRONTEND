@@ -205,7 +205,8 @@ export function SiteHomePage() {
                           r.approverNames,
                           r.poStatus,
                           r.pmProceededAllocation,
-                          r.allocationReviewStage
+                          r.allocationReviewStage,
+                          r.allocatedByRole
                         )}
                       />
                     </td>
