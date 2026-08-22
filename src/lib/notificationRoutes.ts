@@ -31,7 +31,7 @@ export function getNotificationPath(
       return `/requests/${n.relatedEntityId}`;
     }
     if (role === UserRole.COORDINATOR) {
-      return procurementDecisionPath(role, n.relatedEntityId);
+      return `/requests/${n.relatedEntityId}`;
     }
     return null;
   }

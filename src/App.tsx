@@ -401,8 +401,17 @@ export default function App() {
                 element={
                   <RoleGuard roles={[UserRole.COORDINATOR]}>
                     <ProcurementRequestsBrowsePage
-                      subtitle="All procurement requests — approve linked POs from Verify POs"
-                      detailPath={() => `/coordinator/purchase-orders`}
+                      subtitle="All procurement requests — open an indent to locally approve when within the daily cap"
+                      detailPath={(pr) => {
+                        const raw = pr.materialRequestId as unknown;
+                        const mrId =
+                          typeof raw === 'string' && raw
+                            ? raw
+                            : raw && typeof raw === 'object' && 'id' in (raw as object)
+                              ? String((raw as { id: string }).id)
+                              : pr.materialRequest?.id;
+                        return mrId ? `/requests/${mrId}` : '/coordinator/purchase-orders';
+                      }}
                     />
                   </RoleGuard>
                 }

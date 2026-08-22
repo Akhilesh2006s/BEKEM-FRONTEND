@@ -489,6 +489,7 @@ export interface MaterialRequestDto {
     /** Sequential allocation review after PO approval: Executive → PM → Store → Indent Raiser. */
     allocationReviewStage?: 'EXECUTIVE' | 'PROJECT_MANAGER' | 'STORE_INCHARGE' | 'SITE_INCHARGE' | null;
     storeStockVerified?: boolean;
+    storeStockReceivedAt?: string | null;
     origin?: 'SITE' | 'EXECUTIVE';
     purchaseRequestId?: string;
     prNumber?: string;
@@ -724,6 +725,8 @@ export interface PurchaseRequestDto {
     rfqNumber?: string | null;
     rfqRaisedByName?: string | null;
     rfqRaisedByRole?: string | null;
+    /** Vendors the executive actually assigned on the RFQ (0 = preview-only / not saved). */
+    rfqAssignedVendorCount?: number;
     items?: Array<{
         id: string;
         materialId: string;
@@ -1151,6 +1154,8 @@ export interface RfqListItemDto {
     dueDate?: string | null;
     indentNumber?: string;
     purchaseRequestId?: string;
+    /** Vendors actually assigned (0 means RFQ was previewed but not saved with vendors). */
+    assignedVendorCount?: number;
     poId?: string | null;
     poNumber?: string | null;
     createdAt: string;

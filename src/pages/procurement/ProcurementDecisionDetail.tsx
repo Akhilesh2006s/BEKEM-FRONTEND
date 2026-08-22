@@ -128,6 +128,50 @@ export function ProcurementDecisionDetailPage({ listPath }: ProcurementDecisionD
 
 
 
+  const acceptStock = useMutation({
+
+    mutationFn: async () => {
+
+      const res = await api.post<{ data: ProcurementDecisionDto }>(
+
+        `/procurement-decisions/${id}/executive-decide`,
+
+        { method: 'ACCEPT_STOCK', remark: remark.trim() }
+
+      );
+
+      return res.data.data;
+
+    },
+
+    onSuccess: () => {
+
+      toast.success('Accepted — sent to Coordinator procurement requests for local approval');
+
+      setRemark('');
+
+      queryClient.invalidateQueries({ queryKey: ['procurement-decision', id] });
+
+      queryClient.invalidateQueries({ queryKey: ['procurement-decisions'] });
+
+      queryClient.invalidateQueries({ queryKey: ['dashboard-widgets'] });
+
+      queryClient.invalidateQueries({ queryKey: ['procurement-requests-browse'] });
+
+      navigate(listPath);
+
+    },
+
+    onError: (err: Error & { response?: { data?: { message?: string } } }) => {
+
+      toast.error(err.response?.data?.message || 'Could not accept against stock');
+
+    },
+
+  });
+
+
+
   const proceedWithPo = useMutation({
 
     mutationFn: async () => {
@@ -260,6 +304,15 @@ export function ProcurementDecisionDetailPage({ listPath }: ProcurementDecisionD
       unit: item.unit,
 
     })) ?? [];
+
+  const hasAvailableStock =
+    decision?.hasAvailableStock ?? stockItems.some((item) => (item.availableQty || 0) > 0);
+  const canFullyIssue =
+    decision?.canFullyIssue ??
+    (stockItems.length > 0 &&
+      stockItems.every(
+        (item) => computeRequiredQty(item.requestedQty || item.quantityRequested || 0, item.availableQty || 0) <= 0
+      ));
 
 
 
@@ -574,9 +627,7 @@ export function ProcurementDecisionDetailPage({ listPath }: ProcurementDecisionD
 
                 <p className="text-xs text-ink-secondary">
 
-                  Review-only inbox — approve to queue this request for RFQ. Invite vendors, compare quotes,
-
-                  then create the purchase order from the winning vendor.
+                  Accept uses site stock when it covers the indent. You can still proceed with RFQ even if stock is available.
 
                 </p>
 
@@ -600,21 +651,75 @@ export function ProcurementDecisionDetailPage({ listPath }: ProcurementDecisionD
 
                 </div>
 
-                <Button
+                <div className="flex flex-wrap gap-2">
 
-                  variant="accent"
+                  <Button
 
-                  accentColor={accent}
+                    variant="accent"
 
-                  disabled={proceedWithPo.isPending}
+                    accentColor={accent}
 
-                  onClick={() => proceedWithPo.mutate()}
+                    disabled={!hasAvailableStock || acceptStock.isPending || proceedWithPo.isPending}
 
-                >
+                    title={
+                      hasAvailableStock
+                        ? canFullyIssue
+                          ? 'Reserve site stock and send this indent to Store to issue'
+                          : 'Site stock cannot cover the full indent — Accept still needs enough quantity'
+                        : 'Accept is available when site stock exists for this indent'
+                    }
 
-                  Proceed with RFQ
+                    onClick={() => {
+                      if (!canFullyIssue) {
+                        toast.error(
+                          'Site stock cannot cover this indent. You can still proceed with RFQ.'
+                        );
+                        return;
+                      }
+                      acceptStock.mutate();
+                    }}
 
-                </Button>
+                  >
+
+                    Accept
+
+                  </Button>
+
+                  <Button
+
+                    variant="secondary"
+
+                    disabled={proceedWithPo.isPending || acceptStock.isPending}
+
+                    onClick={() => proceedWithPo.mutate()}
+
+                  >
+
+                    Proceed with RFQ
+
+                  </Button>
+
+                </div>
+
+                {!hasAvailableStock && (
+
+                  <p className="text-xs text-ink-muted">
+
+                    No site stock for this indent, so Accept is unavailable. You can still raise an RFQ.
+
+                  </p>
+
+                )}
+
+                {hasAvailableStock && !canFullyIssue && (
+
+                  <p className="text-xs text-ink-muted">
+
+                    Site stock is available but does not cover the requested quantity. Accept needs full coverage; you can still raise an RFQ.
+
+                  </p>
+
+                )}
 
               </div>
 

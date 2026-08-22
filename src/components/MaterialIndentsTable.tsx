@@ -106,6 +106,7 @@ export function formatIndentQueueStatus(
     case 'ALLOCATED':
       if (allocatedByRole === UserRole.PROJECT_MANAGER) return 'Locally Approved by PM';
       if (allocatedByRole === UserRole.COORDINATOR) return 'Locally Approved by Coordinator';
+      if (allocatedByRole === UserRole.EXECUTIVE) return 'Locally Approved by Executive';
       return `Approved by ${roleLabel(UserRole.STORE_INCHARGE)}`;
     case 'FORWARDED_TO_PM':
     case 'BRANCH_TRANSFER_REQUESTED':
@@ -121,6 +122,7 @@ export function formatIndentQueueStatus(
     case 'PO_CREATED':
     case 'EXECUTIVE_DECISION_PO':
     case 'EXECUTIVE_DECISION_BRANCH_TRANSFER':
+    case 'HO_PENDING_COORDINATOR':
       return `Approved by ${roleLabel(UserRole.EXECUTIVE)}`;
     case 'COORDINATOR_PENDING':
     case 'PENDING_REVIEW':
