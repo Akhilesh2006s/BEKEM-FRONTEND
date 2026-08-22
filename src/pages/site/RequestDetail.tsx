@@ -1195,7 +1195,9 @@ export function RequestDetailPage() {
                 Review & decide
               </Button>
             )}
-            {!request.rfqId && request.purchaseRequestId && role === UserRole.EXECUTIVE && (
+            {request.purchaseRequestId &&
+              role === UserRole.EXECUTIVE &&
+              (!request.rfqId || request.rfqStatus === 'OPEN') && (
               <Button
                 variant="primary"
                 onClick={() =>
@@ -1207,7 +1209,7 @@ export function RequestDetailPage() {
                 Create RFQ
               </Button>
             )}
-            {request.rfqId && (
+            {request.rfqId && request.rfqStatus !== 'OPEN' && (
               <Button variant="secondary" onClick={() => navigate(`/rfqs/${request.rfqId}`)}>
                 Open RFQ
               </Button>

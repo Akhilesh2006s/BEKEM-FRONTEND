@@ -230,6 +230,14 @@ export function GrnReceivePage() {
   const hasInvoiceUpload = hasAttachmentCategory(attachments, 'INVOICE');
   const hasChallanUpload = hasAttachmentCategory(attachments, 'CHALLAN');
 
+  const isFullRemaining = useMemo(() => {
+    if (!receiptLines.length) return false;
+    return receiptLines.every((row) => {
+      const received = Number(receivedByLine[lineKey(row)] || 0);
+      return row.orderedQty - row.previouslyReceived - received <= 0.0001;
+    });
+  }, [receiptLines, receivedByLine]);
+
   useEffect(() => {
     const lines = grnContext?.lines?.length
       ? grnContext.lines
@@ -242,12 +250,19 @@ export function GrnReceivePage() {
     const prices: Record<string, number> = {};
     lines.forEach((line) => {
       const key = lineKey(line);
-      received[key] = receiveType === 'FULL' ? line.remainingQty : '';
+      received[key] = '';
       prices[key] = line.poRate;
     });
     setReceivedByLine(received);
     setInvoicePriceByLine(prices);
-  }, [grnContext, receiveType, selectedPo]);
+    setReceiveType('PARTIAL');
+  }, [grnContext, selectedPo]);
+
+  useEffect(() => {
+    if (!receiptLines.length) return;
+    const next: ReceiveType = isFullRemaining ? 'FULL' : 'PARTIAL';
+    setReceiveType((prev) => (prev === next ? prev : next));
+  }, [isFullRemaining, receiptLines.length]);
 
   const resetForm = () => {
     setSelectedPo(null);
@@ -947,7 +962,18 @@ export function GrnReceivePage() {
                         name="receiveType"
                         value={opt.value}
                         checked={receiveType === opt.value}
-                        onChange={() => setReceiveType(opt.value)}
+                        onChange={() => {
+                          setReceiveType(opt.value);
+                          if (opt.value === 'FULL') {
+                            setReceivedByLine((prev) => {
+                              const next = { ...prev };
+                              receiptLines.forEach((line) => {
+                                next[lineKey(line)] = line.remainingQty;
+                              });
+                              return next;
+                            });
+                          }
+                        }}
                         className="accent-bekem-accent"
                       />
                       {opt.label}

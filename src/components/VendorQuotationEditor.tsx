@@ -1,13 +1,14 @@
-import { ChevronDown, ChevronRight, Plus, Search, Trash2, X } from 'lucide-react';
-import { useMemo, useRef, useState } from 'react';
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { ChevronDown, ChevronRight, Plus, Trash2, X } from 'lucide-react';
+import { useMemo, useState } from 'react';
+import { useQuery } from '@tanstack/react-query';
 import { toast } from 'sonner';
-import { DEFAULT_GST_PERCENT, MATERIAL_CATEGORY_NAMES } from '@afios/shared';
-import type { CreateVendorDto, MaterialCategoryDto, VendorDto } from '@afios/shared';
+import { DEFAULT_GST_PERCENT } from '@afios/shared';
+import type { VendorDto } from '@afios/shared';
 import { api } from '@/lib/api';
 import { Button } from '@/components/ui/Button';
 import { Input } from '@/components/ui/Input';
-import { Modal } from '@/components/ui/Modal';
+import { SearchSelect } from '@/components/SearchSelect';
+import { VendorFormModal } from '@/components/VendorFormModal';
 import { computeFinalCost } from '@/lib/quotationTotals';
 import { cn } from '@/lib/utils';
 
@@ -36,23 +37,6 @@ interface VendorQuotationEditorProps {
   onChange: (rows: VendorQuotationDraft[]) => void;
   minRows?: number;
 }
-
-const emptyVendorForm = (): CreateVendorDto => ({
-  name: '',
-  isMsme: false,
-  gstNumber: '',
-  panNumber: '',
-  contactPerson: '',
-  phone: '',
-  email: '',
-  address: '',
-  bankName: '',
-  bankAccountNumber: '',
-  ifscCode: '',
-  category: '',
-  suppliedCategories: [],
-  materialIds: [],
-});
 
 export function computeDraftFinalCost(row: VendorQuotationDraft, quantity = 1) {
   return computeFinalCost(row.rate, quantity, row.gstPercent);
@@ -96,7 +80,6 @@ export function VendorQuotationEditor({
   minRows: _minRows = 1,
 }: VendorQuotationEditorProps) {
   const MAX_VENDORS = 100;
-  const queryClient = useQueryClient();
   const { data: vendors } = useQuery({
     queryKey: ['vendors-active'],
     queryFn: async () => {
@@ -105,30 +88,36 @@ export function VendorQuotationEditor({
     },
   });
 
-  const { data: materialCategories } = useQuery({
-    queryKey: ['material-categories'],
+  const rfqMaterialIds = useMemo(
+    () => items.map((item) => String(item.materialId || '')).filter(Boolean),
+    [items]
+  );
+  const { data: vendorsByMaterial } = useQuery({
+    queryKey: ['vendors-for-materials', rfqMaterialIds.join(',')],
     queryFn: async () => {
-      const res = await api.get<{ data: MaterialCategoryDto[] }>('/material-categories');
+      const res = await api.get<{
+        data: Array<{ materialId: string; vendors: VendorDto[] }>;
+      }>('/vendors/for-materials', {
+        params: { materialIds: rfqMaterialIds.join(','), strict: 'true' },
+      });
       return res.data.data ?? [];
     },
+    enabled: rfqMaterialIds.length > 0,
   });
+  const vendorsByMaterialId = useMemo(() => {
+    const map = new Map<string, VendorDto[]>();
+    for (const row of vendorsByMaterial ?? []) {
+      map.set(String(row.materialId), row.vendors || []);
+    }
+    return map;
+  }, [vendorsByMaterial]);
 
-  const categoryOptions = useMemo(() => {
-    const names = (materialCategories ?? [])
-      .map((c) => c.name)
-      .filter((name): name is string => !!name?.trim());
-    return names.length ? names : [...MATERIAL_CATEGORY_NAMES];
-  }, [materialCategories]);
-
-  const [productVendorSearch, setProductVendorSearch] = useState<Record<string, string>>({});
-  const [searchFocusedMaterialId, setSearchFocusedMaterialId] = useState<string | null>(null);
   const [expandedMaterialId, setExpandedMaterialId] = useState<string | null>(
     () => items[0]?.materialId ?? null
   );
-  const searchBlurTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const [createOpen, setCreateOpen] = useState(false);
-  const [createForm, setCreateForm] = useState<CreateVendorDto>(emptyVendorForm);
+  const [createInitialName, setCreateInitialName] = useState('');
   const [createProductIds, setCreateProductIds] = useState<string[]>([]);
 
   const setQuotations = (rows: VendorQuotationDraft[]) => onChange(dedupeQuotations(rows));
@@ -137,36 +126,6 @@ export function VendorQuotationEditor({
     () => quotations.filter(isAssigned),
     [quotations]
   );
-
-  const allVendorOptions = useMemo(() => {
-    const map = new Map<
-      string,
-      { id: string; name: string; code?: string; gstNumber?: string; phone?: string }
-    >();
-    for (const v of vendors ?? []) {
-      map.set(v.id, {
-        id: v.id,
-        name: v.name,
-        code: v.code,
-        gstNumber: v.gstNumber,
-        phone: v.phone,
-      });
-    }
-    for (const q of assignedQuotations) {
-      if (q.vendorId && !map.has(q.vendorId)) {
-        map.set(q.vendorId, { id: q.vendorId, name: q.vendorName || q.vendorId });
-      }
-    }
-    return Array.from(map.values()).sort((a, b) => a.name.localeCompare(b.name));
-  }, [vendors, assignedQuotations]);
-
-  const vendorMaterialIds = useMemo(() => {
-    const map = new Map<string, Set<string>>();
-    for (const vendor of vendors ?? []) {
-      map.set(vendor.id, new Set((vendor.materialIds || []).map(String)));
-    }
-    return map;
-  }, [vendors]);
 
   const findQuotationIndex = (vendorId: string) => quotations.findIndex((q) => q.vendorId === vendorId);
 
@@ -271,66 +230,29 @@ export function VendorQuotationEditor({
     setQuotations(next);
   };
 
-  const openCreateVendor = (preselectMaterialId?: string) => {
+  const openCreateVendor = (preselectMaterialId?: string, name = '') => {
     const defaults =
       preselectMaterialId
         ? [preselectMaterialId]
         : items.length === 1
           ? [items[0].materialId]
           : items.map((it) => it.materialId);
-    setCreateForm(emptyVendorForm());
+    setCreateInitialName(name);
     setCreateProductIds(defaults);
     setCreateOpen(true);
   };
 
-  const createVendor = useMutation({
-    mutationFn: async () => {
-      const payload: CreateVendorDto = {
-        ...createForm,
-        name: createForm.name.trim(),
-        panNumber: createForm.panNumber?.trim() || '',
-        contactPerson: createForm.contactPerson?.trim() || '',
-        phone: createForm.phone?.trim() || '',
-        bankName: createForm.bankName?.trim() || '',
-        bankAccountNumber: createForm.bankAccountNumber?.trim() || '',
-        ifscCode: createForm.ifscCode?.trim() || '',
-        gstNumber: createForm.gstNumber?.trim() || '',
-        category: createForm.category?.trim() || '',
-        suppliedCategories: createForm.category?.trim()
-          ? [createForm.category.trim()]
-          : [],
-        materialIds: createProductIds,
-      };
-      const res = await api.post<{ data: VendorDto }>('/vendors', payload);
-      return res.data.data;
-    },
-    onSuccess: (vendor) => {
-      queryClient.invalidateQueries({ queryKey: ['vendors-active'] });
-      queryClient.invalidateQueries({ queryKey: ['vendors'] });
-      assignVendorToProducts(vendor.id, vendor.name, createProductIds);
-      setCreateOpen(false);
-      setCreateForm(emptyVendorForm());
-      toast.success(
-        vendor.authorizationStatus === 'PENDING'
-          ? `${vendor.name} created (pending authorization) and assigned to RFQ`
-          : `${vendor.name} created and assigned to RFQ`
-      );
-    },
-    onError: (e: Error & { response?: { data?: { message?: string } } }) => {
-      toast.error(e.response?.data?.message || 'Failed to create vendor');
-    },
-  });
-
-  const canCreate =
-    !!createForm.name?.trim() &&
-    !!createForm.panNumber?.trim() &&
-    !!createForm.contactPerson?.trim() &&
-    !!createForm.phone?.trim() &&
-    !!createForm.bankName?.trim() &&
-    !!createForm.bankAccountNumber?.trim() &&
-    !!createForm.ifscCode?.trim() &&
-    !!createForm.category?.trim() &&
-    createProductIds.length > 0;
+  const handleVendorCreated = (vendor: VendorDto) => {
+    if (!vendor?.id) return;
+    const rfqIds = items.map((it) => String(it.materialId || '')).filter(Boolean);
+    const fromContext = createProductIds.map(String).filter((id) => rfqIds.includes(id));
+    const assignedIds = fromContext.length ? fromContext : rfqIds;
+    if (!assignedIds.length) {
+      toast.error('Vendor saved, but this RFQ has no products to assign');
+      return;
+    }
+    assignVendorToProducts(vendor.id, vendor.name, assignedIds);
+  };
 
   return (
     <div className="space-y-2">
@@ -340,43 +262,28 @@ export function VendorQuotationEditor({
             <div>
               <p className="text-xs font-semibold text-ink-muted">Product-wise vendor assignment</p>
               <p className="text-[11px] text-ink-secondary mt-0.5">
-                Search and select vendors, or create a new vendor. Assign 1–100 vendors (3+ recommended).
+                                Search inside the dropdown — only vendors who have this product in Materials supplied.
               </p>
             </div>
             <Button type="button" size="sm" variant="secondary" onClick={() => openCreateVendor()}>
               <Plus className="h-3.5 w-3.5" />
-              Create new vendor
+              Add vendor
             </Button>
           </div>
           {items.map((item) => {
             const isExpanded = expandedMaterialId === item.materialId;
-            const searchRaw = productVendorSearch[item.materialId] || '';
-            const searchQuery = searchRaw.trim().toLowerCase();
             const assignedForProduct = assignedQuotations.filter((q) =>
-              q.selectedMaterialIds?.includes(item.materialId)
+              q.selectedMaterialIds?.map(String).includes(String(item.materialId))
             );
             const assignedIds = new Set(assignedForProduct.map((q) => q.vendorId));
-            const filteredVendors = allVendorOptions.filter((vendor) => {
-              if (assignedIds.has(vendor.id)) return false;
-              const mappedMaterialIds = vendorMaterialIds.get(vendor.id);
-              if (!mappedMaterialIds?.has(item.materialId)) return false;
-              if (!searchQuery) return false;
-              const haystack = [
-                vendor.name,
-                vendor.code,
-                vendor.gstNumber,
-                vendor.phone,
-              ]
-                .filter(Boolean)
-                .join(' ')
-                .toLowerCase();
-              return haystack.includes(searchQuery);
-            });
-            const showSuggestions =
-              searchFocusedMaterialId === item.materialId && searchQuery.length > 0;
-            const mappedVendorCount = allVendorOptions.filter((vendor) =>
-              vendorMaterialIds.get(vendor.id)?.has(item.materialId)
-            ).length;
+            const productVendorOptions = (vendorsByMaterialId.get(String(item.materialId)) ?? [])
+              .filter((vendor) => !assignedIds.has(vendor.id))
+              .map((vendor) => ({
+                id: vendor.id,
+                label: vendor.name,
+                sublabel: [vendor.code, vendor.gstNumber, vendor.phone].filter(Boolean).join(' · '),
+              }))
+              .sort((a, b) => a.label.localeCompare(b.label));
             const assignedNames = assignedForProduct.map((q) => q.vendorName || q.vendorId);
             return (
               <div key={item.materialId} className="border border-surface-border rounded-lg overflow-visible">
@@ -411,109 +318,29 @@ export function VendorQuotationEditor({
                 </button>
                 {isExpanded && (
                   <div className="px-2.5 py-3 space-y-3">
-                    <div className="flex flex-wrap items-center gap-2">
-                      <div className="relative flex-1 min-w-[200px] max-w-md">
-                        <Search className="absolute left-2 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-ink-muted pointer-events-none z-[1]" />
-                        <Input
-                          className="input-compact pl-7"
-                          placeholder="Search vendors to assign…"
-                          value={searchRaw}
-                          onChange={(e) =>
-                            setProductVendorSearch((prev) => ({
-                              ...prev,
-                              [item.materialId]: e.target.value,
-                            }))
+                    <div className="flex flex-wrap items-end gap-2">
+                      <label className="flex-1 min-w-[240px] max-w-lg space-y-1">
+                        <span className="text-[10px] font-medium text-ink-muted">
+                          Vendors who supply this product
+                        </span>
+                        <SearchSelect
+                          key={`${item.materialId}-${assignedIds.size}`}
+                          value={null}
+                          options={productVendorOptions}
+                          placeholder={
+                            productVendorOptions.length
+                              ? 'Search and select a vendor…'
+                              : 'No vendors supply this product'
                           }
-                          onFocus={() => {
-                            if (searchBlurTimer.current) clearTimeout(searchBlurTimer.current);
-                            setSearchFocusedMaterialId(item.materialId);
+                          emptyMessage="No matching vendor supplies this product"
+                          disabled={!productVendorOptions.length}
+                          compact
+                          onChange={(vendorId, option) => {
+                            if (!vendorId) return;
+                            toggleProductVendor(item.materialId, vendorId, true, option.label);
                           }}
-                          onBlur={() => {
-                            searchBlurTimer.current = setTimeout(() => {
-                              setSearchFocusedMaterialId((prev) =>
-                                prev === item.materialId ? null : prev
-                              );
-                            }, 150);
-                          }}
-                          aria-label={`Search vendors for ${item.name}`}
-                          aria-autocomplete="list"
                         />
-                        {showSuggestions && (
-                          <div
-                            className="absolute left-0 right-0 top-full mt-1 z-50 rounded-md border border-surface-border bg-white shadow-lg"
-                            role="listbox"
-                          >
-                            <div className="px-2.5 py-1.5 border-b border-surface-border bg-surface-muted/40">
-                              <p className="text-[10px] font-medium text-ink-muted">
-                                {filteredVendors.length
-                                  ? `${filteredVendors.length} vendor${filteredVendors.length === 1 ? '' : 's'} — scroll to see all`
-                                  : mappedVendorCount
-                                    ? 'No matching vendor for this product search'
-                                    : 'No vendors mapped to this product yet'}
-                              </p>
-                            </div>
-                            <ul className="max-h-[min(22rem,50vh)] overflow-y-auto overscroll-contain">
-                              {filteredVendors.length ? (
-                                filteredVendors.map((vendor) => (
-                                  <li key={vendor.id} role="option">
-                                    <button
-                                      type="button"
-                                      className="w-full text-left px-3 py-2 hover:bg-bekem-accent/5 transition-colors border-b border-surface-border/60 last:border-b-0"
-                                      onMouseDown={(e) => e.preventDefault()}
-                                      onClick={() => {
-                                        toggleProductVendor(
-                                          item.materialId,
-                                          vendor.id,
-                                          true,
-                                          vendor.name
-                                        );
-                                        setProductVendorSearch((prev) => ({
-                                          ...prev,
-                                          [item.materialId]: '',
-                                        }));
-                                        setSearchFocusedMaterialId(null);
-                                      }}
-                                    >
-                                      <span className="block text-xs font-medium text-ink">
-                                        {vendor.name}
-                                      </span>
-                                      {(vendor.code || vendor.gstNumber || vendor.phone) && (
-                                        <span className="block text-[10px] text-ink-muted mt-0.5">
-                                          {[vendor.code, vendor.gstNumber, vendor.phone]
-                                            .filter(Boolean)
-                                            .join(' · ')}
-                                        </span>
-                                      )}
-                                    </button>
-                                  </li>
-                                ))
-                              ) : (
-                                <li className="px-3 py-2.5 space-y-2">
-                                  <p className="text-xs text-ink-muted">
-                                    No vendors match “{searchRaw.trim()}”
-                                  </p>
-                                  <button
-                                    type="button"
-                                    className="text-xs font-medium text-bekem-accent hover:underline"
-                                    onMouseDown={(e) => e.preventDefault()}
-                                    onClick={() => {
-                                      setCreateForm({
-                                        ...emptyVendorForm(),
-                                        name: searchRaw.trim(),
-                                      });
-                                      setCreateProductIds([item.materialId]);
-                                      setCreateOpen(true);
-                                      setSearchFocusedMaterialId(null);
-                                    }}
-                                  >
-                                    Create “{searchRaw.trim()}” as new vendor
-                                  </button>
-                                </li>
-                              )}
-                            </ul>
-                          </div>
-                        )}
-                      </div>
+                      </label>
                       <Button
                         type="button"
                         size="sm"
@@ -521,7 +348,7 @@ export function VendorQuotationEditor({
                         onClick={() => openCreateVendor(item.materialId)}
                       >
                         <Plus className="h-3.5 w-3.5" />
-                        New vendor
+                        Add vendor
                       </Button>
                     </div>
 
@@ -547,7 +374,9 @@ export function VendorQuotationEditor({
                       </div>
                     ) : (
                       <p className="text-[11px] text-ink-muted">
-                        Type a vendor name and select, or create a new vendor for this product.
+                        {productVendorOptions.length
+                          ? 'Open the dropdown to search vendors who supply this product.'
+                          : 'No vendors have this product in Materials supplied. Add a vendor to assign one.'}
                       </p>
                     )}
                   </div>
@@ -564,7 +393,7 @@ export function VendorQuotationEditor({
           <p className="text-[11px] text-ink-secondary">
             {assignedQuotations.length
               ? `${assignedQuotations.length} vendor RFQ(s) — tick product checkboxes to assign — scroll sideways if needed`
-              : 'Assign vendors to products above — they will appear here as columns'}
+              : 'Vendors you add or select above appear here as columns'}
           </p>
         </div>
         {assignedQuotations.length ? (
@@ -705,181 +534,18 @@ export function VendorQuotationEditor({
           </div>
         ) : (
           <p className="text-center text-sm text-ink-muted py-6 px-3">
-            No vendors assigned yet. Search a vendor or create a new one above.
+            No vendors assigned yet. Select an existing vendor from the product dropdown, or add a vendor.
           </p>
         )}
       </div>
 
-      <Modal
+      <VendorFormModal
         open={createOpen}
-        onClose={() => !createVendor.isPending && setCreateOpen(false)}
-        title="Create new vendor"
-        subtitle="Vendor is created and assigned to selected RFQ products"
-        className="max-w-xl"
-      >
-        <div className="space-y-3 max-h-[70vh] overflow-y-auto pr-1">
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-            <label className="block sm:col-span-2">
-              <span className="text-[11px] font-medium text-ink-secondary">Vendor name *</span>
-              <Input
-                className="input-compact mt-0.5"
-                value={createForm.name}
-                onChange={(e) => setCreateForm((f) => ({ ...f, name: e.target.value }))}
-                placeholder="Supplier name"
-              />
-            </label>
-            <label className="block sm:col-span-2">
-              <span className="text-[11px] font-medium text-ink-secondary">Category *</span>
-              <select
-                className="input-compact mt-0.5 flex h-7 w-full rounded border border-surface-border bg-white px-2 text-xs text-ink focus:outline-none focus:ring-2 focus:ring-bekem-navy/15 focus:border-bekem-navy/30"
-                value={createForm.category || ''}
-                onChange={(e) =>
-                  setCreateForm((f) => ({
-                    ...f,
-                    category: e.target.value,
-                    suppliedCategories: e.target.value ? [e.target.value] : [],
-                  }))
-                }
-                aria-label="Vendor category"
-              >
-                <option value="">Select category…</option>
-                {categoryOptions.map((name) => (
-                  <option key={name} value={name}>
-                    {name}
-                  </option>
-                ))}
-              </select>
-            </label>
-            <label className="block">
-              <span className="text-[11px] font-medium text-ink-secondary">GST number</span>
-              <Input
-                className="input-compact mt-0.5"
-                value={createForm.gstNumber || ''}
-                onChange={(e) => setCreateForm((f) => ({ ...f, gstNumber: e.target.value }))}
-                placeholder="GSTIN"
-              />
-            </label>
-            <label className="block">
-              <span className="text-[11px] font-medium text-ink-secondary">PAN *</span>
-              <Input
-                className="input-compact mt-0.5"
-                value={createForm.panNumber || ''}
-                onChange={(e) => setCreateForm((f) => ({ ...f, panNumber: e.target.value }))}
-                placeholder="PAN"
-              />
-            </label>
-            <label className="block">
-              <span className="text-[11px] font-medium text-ink-secondary">Contact person *</span>
-              <Input
-                className="input-compact mt-0.5"
-                value={createForm.contactPerson || ''}
-                onChange={(e) => setCreateForm((f) => ({ ...f, contactPerson: e.target.value }))}
-                placeholder="Name"
-              />
-            </label>
-            <label className="block">
-              <span className="text-[11px] font-medium text-ink-secondary">Phone *</span>
-              <Input
-                className="input-compact mt-0.5"
-                value={createForm.phone || ''}
-                onChange={(e) => setCreateForm((f) => ({ ...f, phone: e.target.value }))}
-                placeholder="Mobile"
-              />
-            </label>
-            <label className="block">
-              <span className="text-[11px] font-medium text-ink-secondary">Bank name *</span>
-              <Input
-                className="input-compact mt-0.5"
-                value={createForm.bankName || ''}
-                onChange={(e) => setCreateForm((f) => ({ ...f, bankName: e.target.value }))}
-              />
-            </label>
-            <label className="block">
-              <span className="text-[11px] font-medium text-ink-secondary">Account number *</span>
-              <Input
-                className="input-compact mt-0.5"
-                value={createForm.bankAccountNumber || ''}
-                onChange={(e) => setCreateForm((f) => ({ ...f, bankAccountNumber: e.target.value }))}
-              />
-            </label>
-            <label className="block">
-              <span className="text-[11px] font-medium text-ink-secondary">IFSC *</span>
-              <Input
-                className="input-compact mt-0.5"
-                value={createForm.ifscCode || ''}
-                onChange={(e) => setCreateForm((f) => ({ ...f, ifscCode: e.target.value }))}
-              />
-            </label>
-            <label className="inline-flex items-center gap-2 sm:col-span-2 pt-1">
-              <input
-                type="checkbox"
-                className="h-3.5 w-3.5"
-                checked={!!createForm.isMsme}
-                onChange={(e) => setCreateForm((f) => ({ ...f, isMsme: e.target.checked }))}
-              />
-              <span className="text-xs text-ink">MSME registered vendor</span>
-            </label>
-          </div>
-
-          {!!items.length && (
-            <div className="rounded-md border border-surface-border bg-surface-muted/30 p-2.5">
-              <p className="text-[11px] font-semibold text-ink-muted mb-1.5">
-                Assign products in this RFQ *
-              </p>
-              <div className="flex flex-col gap-1.5">
-                {items.map((item) => {
-                  const checked = createProductIds.includes(item.materialId);
-                  return (
-                    <label
-                      key={item.materialId}
-                      className="inline-flex items-start gap-2 text-xs text-ink cursor-pointer"
-                    >
-                      <input
-                        type="checkbox"
-                        className="mt-0.5 h-3.5 w-3.5 shrink-0"
-                        checked={checked}
-                        onChange={(e) => {
-                          setCreateProductIds((prev) =>
-                            e.target.checked
-                              ? [...prev, item.materialId]
-                              : prev.filter((id) => id !== item.materialId)
-                          );
-                        }}
-                      />
-                      <span>
-                        {item.name}
-                        <span className="text-ink-muted">
-                          {' '}
-                          · Qty {item.quantity} {item.unit}
-                        </span>
-                      </span>
-                    </label>
-                  );
-                })}
-              </div>
-            </div>
-          )}
-
-          <div className="flex justify-end gap-2 pt-1 pb-1">
-            <Button
-              type="button"
-              variant="ghost"
-              disabled={createVendor.isPending}
-              onClick={() => setCreateOpen(false)}
-            >
-              Cancel
-            </Button>
-            <Button
-              type="button"
-              variant="primary"
-              disabled={!canCreate || createVendor.isPending}
-              onClick={() => createVendor.mutate()}
-            >
-              {createVendor.isPending ? 'Creating…' : 'Create & assign'}
-            </Button>
-          </div>
-        </div>
-      </Modal>
+        onClose={() => setCreateOpen(false)}
+        initialName={createInitialName}
+        initialMaterialIds={createProductIds}
+        onSaved={handleVendorCreated}
+      />
     </div>
   );
 }

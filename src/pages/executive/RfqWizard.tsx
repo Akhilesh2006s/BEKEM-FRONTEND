@@ -472,7 +472,7 @@ export function RfqWizardPage() {
                   })
                 }
               >
-                {previewRfq.isPending ? 'Creating RFQ…' : 'Continue'}
+                {previewRfq.isPending ? 'Creating RFQ…' : 'Create RFQ'}
               </Button>
             </motion.div>
           )}

@@ -236,14 +236,21 @@ export function IncidentsPage() {
       );
     }
     if (request.rfqId) {
+      const stillCreating = request.rfqStatus === 'OPEN' && request.purchaseRequestId;
       return (
         <div className="flex flex-col items-start gap-1">
           <Button
             variant="primary"
             size="sm"
-            onClick={() => navigate(`/rfqs/${request.rfqId}`)}
+            onClick={() =>
+              navigate(
+                stillCreating
+                  ? `/executive/rfq/new?purchaseRequestId=${request.purchaseRequestId}`
+                  : `/rfqs/${request.rfqId}`
+              )
+            }
           >
-            {request.rfqStatus === 'OPEN' ? 'Open RFQ — add quotes' : 'Open RFQ'}
+            {stillCreating ? 'Create RFQ' : 'Open RFQ'}
           </Button>
           {request.rfqNumber && (
             <span className="text-[10px] text-ink-muted">{request.rfqNumber}</span>
