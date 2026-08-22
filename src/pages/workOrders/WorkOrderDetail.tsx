@@ -91,7 +91,7 @@ export function WorkOrderDetailPage() {
       api.post(`/work-orders/${id}/executive-review`, { action, note }),
     onSuccess: (_, action) => {
       setDoneMessage(
-        action === 'APPROVE' ? 'Sent to Coordinator for verification' : 'Returned to draft'
+        action === 'APPROVE' ? 'Sent to Coordinator for verification' : 'Returned to Project Manager'
       );
       setDone(true);
     },
@@ -440,7 +440,7 @@ export function WorkOrderDetailPage() {
                 disabled={executiveReview.isPending}
                 onClick={() => executiveReview.mutate('RETURN')}
               >
-                Return to draft
+                Return to PM
               </Button>
             </div>
           )}

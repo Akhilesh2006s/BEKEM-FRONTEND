@@ -39,6 +39,12 @@ const ChairmanApprovePOsPage = lazy(() =>
 const ChairmanApproveWOsPage = lazy(() =>
   import('@/pages/chairman/ApproveWOs').then((m) => ({ default: m.ChairmanApproveWOsPage }))
 );
+const PMApproveWOsPage = lazy(() =>
+  import('@/pages/pm/PMApproveWOs').then((m) => ({ default: m.PMApproveWOsPage }))
+);
+const ExecutiveReviewWOsPage = lazy(() =>
+  import('@/pages/executive/ExecutiveReviewWOs').then((m) => ({ default: m.ExecutiveReviewWOsPage }))
+);
 const UserAnalyticsPage = lazy(() =>
   import('@/pages/chairman/UserAnalytics').then((m) => ({ default: m.UserAnalyticsPage }))
 );
@@ -1092,12 +1098,20 @@ export default function App() {
 
               <Route
                 path="/pm/approve-wos"
-                element={<Navigate to="/pm" replace />}
+                element={
+                  <RoleGuard roles={[UserRole.PROJECT_MANAGER]}>
+                    <PMApproveWOsPage />
+                  </RoleGuard>
+                }
               />
 
               <Route
                 path="/executive/review-wos"
-                element={<Navigate to="/executive" replace />}
+                element={
+                  <RoleGuard roles={[UserRole.EXECUTIVE]}>
+                    <ExecutiveReviewWOsPage />
+                  </RoleGuard>
+                }
               />
 
               <Route

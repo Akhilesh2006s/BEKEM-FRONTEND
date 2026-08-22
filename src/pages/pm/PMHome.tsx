@@ -1,11 +1,11 @@
 import { useNavigate } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
-import { ClipboardCheck, FileText, Bell, ChevronRight, ShoppingCart, ArrowLeftRight, Search, FileBarChart2 } from 'lucide-react';
+import { ClipboardCheck, FileText, Bell, ChevronRight, ShoppingCart, ArrowLeftRight, Search, FileBarChart2, HardHat } from 'lucide-react';
 import { api } from '@/lib/api';
 import { approvalCapDayKey } from '@/lib/approvalCapDay';
 import { useAuthStore } from '@/stores/authStore';
 import { getGreeting, getFirstName } from '@afios/shared';
-import type { PmDashboardDto } from '@afios/shared';
+import type { PmDashboardDto, WorkOrderDto } from '@afios/shared';
 import { StatusBadge } from '@/components/ui/StatusBadge';
 import { PageHeader } from '@/components/layout/PageHeader';
 import { ActionCard } from '@/components/ui/ActionCard';
@@ -37,6 +37,17 @@ export function PMHomePage() {
   const purchaseCount = dashboard?.purchaseRequests.length ?? 0;
   const pendingCount = dashboard?.pendingRequests.length ?? 0;
   const unread = dashboard?.notifications.filter((n) => !n.isRead).length ?? 0;
+
+  const { data: woQueue } = useQuery({
+    queryKey: ['wo-queue-pm'],
+    queryFn: async () => {
+      const res = await api.get<{ data: WorkOrderDto[] }>('/work-orders', {
+        params: { queue: 'pm' },
+      });
+      return Array.isArray(res.data.data) ? res.data.data : [];
+    },
+  });
+  const woPending = woQueue?.length ?? 0;
 
   return (
     <div className="page-container">
@@ -110,6 +121,14 @@ export function PMHomePage() {
           icon={ShoppingCart}
           tone="success"
           onClick={() => navigate('/pm/purchase-orders')}
+        />
+        <ActionCard
+          title="Approve work orders"
+          count={woPending}
+          subtitle={woPending > 0 ? 'Waiting on PM approval' : 'Queue clear'}
+          icon={HardHat}
+          tone="info"
+          onClick={() => navigate('/pm/approve-wos')}
         />
         <ActionCard
           title="Notifications"

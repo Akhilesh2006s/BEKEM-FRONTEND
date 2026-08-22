@@ -1,9 +1,9 @@
 import { useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
-import { ShoppingCart, ChevronRight, AlertTriangle, FileText, FileBarChart2 } from 'lucide-react';
+import { ShoppingCart, ChevronRight, AlertTriangle, FileText, FileBarChart2, HardHat, FilePlus } from 'lucide-react';
 import { getGreeting, formatCurrency } from '@afios/shared';
-import type { DeliveryAlertDto, ExecutiveDashboardDto, PurchaseOrderDto } from '@afios/shared';
+import type { DeliveryAlertDto, ExecutiveDashboardDto, PurchaseOrderDto, WorkOrderDto } from '@afios/shared';
 import { api } from '@/lib/api';
 import { Button } from '@/components/ui/Button';
 import { EmptyState } from '@/components/EmptyState';
@@ -83,6 +83,17 @@ export function ExecutiveHomePage() {
     },
   });
 
+  const { data: woReviewQueue } = useQuery({
+    queryKey: ['wo-queue-executive'],
+    queryFn: async () => {
+      const res = await api.get<{ data: WorkOrderDto[] }>('/work-orders', {
+        params: { queue: 'executive' },
+      });
+      return Array.isArray(res.data.data) ? res.data.data : [];
+    },
+  });
+  const woReviewPending = woReviewQueue?.length ?? 0;
+
   const filteredProjects = useMemo(() => {
     let list = dashboard?.projects ?? [];
     if (statusFilter) {
@@ -137,6 +148,21 @@ export function ExecutiveHomePage() {
             icon={ShoppingCart}
             tone="success"
             onClick={() => navigate('/executive/purchase-orders')}
+          />
+          <ActionCard
+            title="Review work orders"
+            subtitle={woReviewPending > 0 ? 'PM-approved WOs waiting on you' : 'Queue clear'}
+            count={woReviewPending}
+            icon={HardHat}
+            tone="info"
+            onClick={() => navigate('/executive/review-wos')}
+          />
+          <ActionCard
+            title="Generate work order"
+            subtitle="Create a work order from an approved PO"
+            icon={FilePlus}
+            tone="neutral"
+            onClick={() => navigate('/executive/wo/new')}
           />
           <ActionCard
             title="Reports"

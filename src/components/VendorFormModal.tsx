@@ -207,14 +207,16 @@ export function VendorFormModal({
   const canSave =
     !!form.name?.trim() &&
     !!form.gstNumber?.trim() &&
-    !!form.panNumber?.trim() &&
     !!form.contactPerson?.trim() &&
     !!form.phone?.trim() &&
-    !!form.bankName?.trim() &&
-    !!form.bankAccountNumber?.trim() &&
-    !!form.ifscCode?.trim() &&
     canProceedMsme &&
-    (editTarget || form.isMsme !== undefined);
+    (editTarget
+      ? true
+      : !!form.panNumber?.trim() &&
+        !!form.bankName?.trim() &&
+        !!form.bankAccountNumber?.trim() &&
+        !!form.ifscCode?.trim() &&
+        form.isMsme !== undefined);
 
   return (
     <Modal
@@ -333,7 +335,7 @@ export function VendorFormModal({
               )}
             </div>
             <Input
-              placeholder="PAN *"
+              placeholder={editTarget ? 'PAN' : 'PAN *'}
               value={form.panNumber || ''}
               onChange={(e) => setForm({ ...form, panNumber: e.target.value })}
             />
@@ -357,21 +359,27 @@ export function VendorFormModal({
           />
           <div className="grid sm:grid-cols-3 gap-2">
             <Input
-              placeholder="Bank name *"
+              placeholder={editTarget ? 'Bank name' : 'Bank name *'}
               value={form.bankName || ''}
               onChange={(e) => setForm({ ...form, bankName: e.target.value })}
             />
             <Input
-              placeholder="Account no. *"
+              placeholder={editTarget ? 'Account no.' : 'Account no. *'}
               value={form.bankAccountNumber || ''}
               onChange={(e) => setForm({ ...form, bankAccountNumber: e.target.value })}
             />
             <Input
-              placeholder="IFSC *"
+              placeholder={editTarget ? 'IFSC' : 'IFSC *'}
               value={form.ifscCode || ''}
               onChange={(e) => setForm({ ...form, ifscCode: e.target.value })}
             />
           </div>
+          {editTarget && (
+            <p className="text-[11px] text-ink-muted -mt-1">
+              Bank and PAN are optional when updating an existing vendor. You can save material
+              assignments without them.
+            </p>
+          )}
           <Input
             placeholder="Category"
             value={form.category}

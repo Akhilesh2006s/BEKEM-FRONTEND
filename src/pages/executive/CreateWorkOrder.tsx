@@ -65,7 +65,7 @@ export function CreateWorkOrderPage() {
     return (
       <SuccessScreen
         title="Work order created!"
-        message={`${createdWo.woNumber} is pending coordinator verification. Contractor acceptance is required before work can start.`}
+        message={`${createdWo.woNumber} is pending Project Manager approval.`}
         accentColor={accent}
         primaryAction={{
           label: 'View work order',
