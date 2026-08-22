@@ -3,6 +3,7 @@ import { useNavigate, useParams } from 'react-router-dom';
 import { Check, Fingerprint, Send, X } from 'lucide-react';
 import { toast } from 'sonner';
 import { api } from '@/lib/api';
+import { approvalCapDayKey } from '@/lib/approvalCapDay';
 import { requireBiometricConfirm } from '@/lib/biometricGate';
 import type { DailyCapDto, MaterialRequestDto } from '@afios/shared';
 import { formatProjectLabel } from '@afios/shared';
@@ -27,7 +28,7 @@ export function PmMobileApprovalPage() {
   });
 
   const { data: pmDailyCap } = useQuery({
-    queryKey: ['pm-daily-cap'],
+    queryKey: ['pm-daily-cap', approvalCapDayKey()],
     queryFn: async () => {
       const res = await api.get<{ data: DailyCapDto }>('/material-requests/pm/daily-cap');
       return res.data.data;
@@ -67,6 +68,7 @@ export function PmMobileApprovalPage() {
     onSuccess: (message) => {
       toast.success(message || (closesAtPm ? 'Closed at PM — stock reserved' : 'Approved'));
       queryClient.invalidateQueries({ queryKey: ['pm-approvals'] });
+      queryClient.invalidateQueries({ queryKey: ['pm-daily-cap'] });
       navigate('/pm/material-indents?tab=pending&queue=approved-store');
     },
     onError: (e: Error & { response?: { data?: { message?: string } } }) => {

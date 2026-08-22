@@ -2,6 +2,7 @@ import { useNavigate } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
 import { ClipboardCheck, FileText, Bell, ChevronRight, ShoppingCart, ArrowLeftRight, Search, FileBarChart2 } from 'lucide-react';
 import { api } from '@/lib/api';
+import { approvalCapDayKey } from '@/lib/approvalCapDay';
 import { useAuthStore } from '@/stores/authStore';
 import { getGreeting, getFirstName } from '@afios/shared';
 import type { PmDashboardDto } from '@afios/shared';
@@ -25,7 +26,7 @@ export function PMHomePage() {
     refetch: refetchDashboard,
     isFetching: dashboardFetching,
   } = useQuery({
-    queryKey: ['pm-dashboard'],
+    queryKey: ['pm-dashboard', approvalCapDayKey()],
     queryFn: async () => {
       const res = await api.get<{ data: PmDashboardDto }>('/dashboard/pm');
       return res.data.data;

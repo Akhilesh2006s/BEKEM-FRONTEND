@@ -4,6 +4,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { ArrowLeft, Copy, Pencil } from 'lucide-react';
 import { toast } from 'sonner';
 import { api } from '@/lib/api';
+import { approvalCapDayKey } from '@/lib/approvalCapDay';
 import { forbiddenQueryOptions, isForbiddenError, useRedirectOnForbidden } from '@/lib/forbiddenRedirect';
 import { useAuthStore } from '@/stores/authStore';
 import {
@@ -83,7 +84,7 @@ export function RequestDetailPage() {
   });
 
   const { data: coordinatorCap } = useQuery({
-    queryKey: ['coordinator-daily-cap'],
+    queryKey: ['coordinator-daily-cap', approvalCapDayKey()],
     queryFn: async () => {
       const res = await api.get<{ data: DailyCapDto }>('/material-requests/coordinator/daily-cap');
       return res.data.data;
@@ -93,7 +94,7 @@ export function RequestDetailPage() {
   });
 
   const { data: pmDailyCap } = useQuery({
-    queryKey: ['pm-daily-cap'],
+    queryKey: ['pm-daily-cap', approvalCapDayKey()],
     queryFn: async () => {
       const res = await api.get<{ data: DailyCapDto }>('/material-requests/pm/daily-cap');
       return res.data.data;
@@ -154,6 +155,7 @@ export function RequestDetailPage() {
       setPmRemark('');
       queryClient.invalidateQueries({ queryKey: ['material-request', id] });
       queryClient.invalidateQueries({ queryKey: ['pm-approvals'] });
+      queryClient.invalidateQueries({ queryKey: ['pm-daily-cap'] });
     },
     onError: (err: Error & { response?: { data?: { message?: string } } }) => {
       toast.error(err.response?.data?.message || 'Could not approve');

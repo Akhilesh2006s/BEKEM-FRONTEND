@@ -1,5 +1,6 @@
 import { useQuery } from '@tanstack/react-query';
 import { api } from '@/lib/api';
+import { approvalCapDayKey } from '@/lib/approvalCapDay';
 import type { DailyCapDto, PmDailyCapDto } from '@afios/shared';
 import { cn } from '@/lib/utils';
 
@@ -82,7 +83,7 @@ export function PmDailyCapBanner({ cap }: { cap?: PmDailyCapDto }) {
   return (
     <DailyCapBanner
       cap={cap}
-      queryKey={['pm-daily-cap']}
+      queryKey={['pm-daily-cap', approvalCapDayKey()]}
       path="/material-requests/pm/daily-cap"
       barClassName="bg-pm"
       overCapMessage="Daily cap reached — further approvals will escalate to Head Office."
@@ -94,7 +95,7 @@ export function CoordinatorDailyCapBanner({ cap }: { cap?: DailyCapDto }) {
   return (
     <DailyCapBanner
       cap={cap}
-      queryKey={['coordinator-daily-cap']}
+      queryKey={['coordinator-daily-cap', approvalCapDayKey()]}
       path="/material-requests/coordinator/daily-cap"
       barClassName="bg-coordinator"
       overCapMessage="Daily cap reached — further approvals will escalate to MD / Chairman."
