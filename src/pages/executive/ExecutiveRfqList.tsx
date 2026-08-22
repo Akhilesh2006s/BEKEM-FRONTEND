@@ -76,6 +76,14 @@ export function ExecutiveRfqListPage({ browseOnly = false }: ExecutiveRfqListPag
     navigate(`/executive/rfq/new?purchaseRequestId=${purchaseRequestId}`);
   };
 
+  const openRfq = (rfq: RfqListItemDto) => {
+    if (!browseOnly && rfq.purchaseRequestId && !(rfq.assignedVendorCount > 0)) {
+      startRfq(rfq.purchaseRequestId);
+      return;
+    }
+    navigate(`/rfqs/${rfq.id}`);
+  };
+
   return (
     <div className="page-container max-w-full">
       <PageHeader
@@ -176,10 +184,16 @@ export function ExecutiveRfqListPage({ browseOnly = false }: ExecutiveRfqListPag
                               variant="primary"
                               size="sm"
                               onClick={() =>
-                                rfq ? navigate(`/rfqs/${rfq.id}`) : startRfq(pr.id)
+                                rfq && (rfq.assignedVendorCount || 0) > 0
+                                  ? openRfq(rfq)
+                                  : startRfq(pr.id)
                               }
                             >
-                              {rfq ? 'Open RFQ' : 'Create RFQ'}
+                              {rfq && (rfq.assignedVendorCount || 0) > 0
+                                ? 'Open RFQ'
+                                : rfq
+                                  ? 'Continue RFQ'
+                                  : 'Create RFQ'}
                             </Button>
                           </td>
                         </tr>
@@ -212,7 +226,7 @@ export function ExecutiveRfqListPage({ browseOnly = false }: ExecutiveRfqListPag
                       <tr
                         key={rfq.id}
                         className="cursor-pointer"
-                        onClick={() => navigate(`/rfqs/${rfq.id}`)}
+                        onClick={() => openRfq(rfq)}
                       >
                         <td className="cell-code whitespace-nowrap">{rfq.rfqNumber}</td>
                         <td className="cell-text whitespace-nowrap">

@@ -253,12 +253,16 @@ export function ExecutivePurchaseRequestDetailPage() {
                     accentColor={accent}
                     size="lg"
                     onClick={() =>
-                      pr.rfqId
+                      pr.rfqId && (pr.rfqAssignedVendorCount || 0) > 0
                         ? navigate(`/rfqs/${pr.rfqId}`)
                         : navigate(`/executive/rfq/new?purchaseRequestId=${pr.id}`)
                     }
                   >
-                    {pr.rfqId ? 'Open RFQ' : 'Create RFQ'}
+                    {pr.rfqId && (pr.rfqAssignedVendorCount || 0) > 0
+                      ? 'Open RFQ'
+                      : pr.rfqId
+                        ? 'Continue RFQ'
+                        : 'Create RFQ'}
                   </Button>
                 </div>
               )}

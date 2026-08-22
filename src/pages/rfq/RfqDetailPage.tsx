@@ -11,6 +11,7 @@ import { ListQueryBoundary } from '@/components/ListQueryBoundary';
 import { downloadExport } from '@/lib/downloadExport';
 import { useAuthStore } from '@/stores/authStore';
 import { toast } from 'sonner';
+import { hasSavedRfqVendors } from '@/lib/rfqVendorAssignments';
 
 export function RfqDetailPage() {
   const { id } = useParams<{ id: string }>();
@@ -38,6 +39,13 @@ export function RfqDetailPage() {
       setRfqsObtainedChecked(true);
     }
   }, [quotesObtained]);
+
+  useEffect(() => {
+    if (!rfq || userRole !== UserRole.EXECUTIVE || hasPo) return;
+    if (hasSavedRfqVendors(rfq)) return;
+    if (!rfq.purchaseRequestId) return;
+    navigate(`/executive/rfq/new?purchaseRequestId=${rfq.purchaseRequestId}`, { replace: true });
+  }, [rfq, userRole, hasPo, navigate]);
 
   const markObtained = useMutation({
     mutationFn: async () => {

@@ -24,7 +24,7 @@ import {
   type VendorQuotationDraft,
 } from '@/components/VendorQuotationEditor';
 import { RfqVendorShareList, mergeAssignedVendors } from '@/components/RfqVendorShareList';
-import { onlyAssignedDrafts } from '@/lib/rfqVendorAssignments';
+import { onlyAssignedDrafts, hasSavedRfqVendors } from '@/lib/rfqVendorAssignments';
 import { cn } from '@/lib/utils';
 
 import { DetailFieldInline, DetailFieldRow } from '@/components/ui/DetailFields';
@@ -191,7 +191,7 @@ export function RfqWizardPage() {
   });
 
   const selectPurchaseRequest = async (pr: PurchaseRequestDto) => {
-    if (pr.rfqId) {
+    if (pr.rfqId && (pr.rfqAssignedVendorCount || 0) > 0) {
       navigate(`/rfqs/${pr.rfqId}`, { replace: true });
       return;
     }
@@ -234,12 +234,12 @@ export function RfqWizardPage() {
     let cancelled = false;
     void (async () => {
       try {
-        const res = await api.get<{ data: { rfqId?: string } | null }>(
+        const res = await api.get<{ data: RfqComparisonDto | null }>(
           `/rfqs/by-pr/${preselectedPrId}`
         );
-        const existingId = res.data.data?.rfqId;
-        if (!cancelled && existingId) {
-          navigate(`/rfqs/${existingId}`, { replace: true });
+        const existing = res.data.data;
+        if (!cancelled && existing?.rfqId && hasSavedRfqVendors(existing)) {
+          navigate(`/rfqs/${existing.rfqId}`, { replace: true });
           return;
         }
       } catch {

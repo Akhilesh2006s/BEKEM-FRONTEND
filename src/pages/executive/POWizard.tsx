@@ -486,40 +486,6 @@ export function POWizardPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps -- run once when PR list is ready
   }, [preselectedPrId, openPurchaseRequests, prLoading, selectedPr, selectingPr]);
 
-  useEffect(() => {
-    if (step !== 1 || !lineItems.length || !vendorOfferRows.length) return;
-    setLineVendorsByIndex((prev) => {
-      const next = { ...prev };
-      let changed = false;
-      lineItems.forEach((row, i) => {
-        if (skippedLines[i] || (next[i]?.length ?? 0) > 0) return;
-        const offers = offersForMaterialId(row.materialId, vendorOfferRows);
-        if (offers.length === 1) {
-          next[i] = [offers[0].vendorId];
-          changed = true;
-        }
-      });
-      return changed ? next : prev;
-    });
-  }, [step, lineItems, vendorOfferRows, skippedLines]);
-
-  useEffect(() => {
-    if (step !== 3 || !lineItems.length || !vendorOfferRows.length) return;
-    setLineVendorByIndex((prev) => {
-      const next = { ...prev };
-      let changed = false;
-      lineItems.forEach((row, i) => {
-        if (skippedLines[i] || next[i]) return;
-        const offers = offersForMaterialId(row.materialId, vendorOfferRows);
-        if (offers.length === 1) {
-          next[i] = offers[0].vendorId;
-          changed = true;
-        }
-      });
-      return changed ? next : prev;
-    });
-  }, [step, lineItems, vendorOfferRows, skippedLines]);
-
   const allActiveLinesHaveRatesForCompare =
     activeLineIndexes.length > 0 &&
     activeLineIndexes.every((i) => {

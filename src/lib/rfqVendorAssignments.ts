@@ -51,3 +51,12 @@ export function onlyAssignedDrafts(rows: VendorQuotationDraft[]) {
   }
   return Array.from(map.values());
 }
+
+/** True when the executive actually assigned vendors (not a preview-only RFQ). */
+export function hasSavedRfqVendors(data: {
+  comparison?: { vendors?: Array<{ vendorId?: string; selectedMaterialIds?: string[] }> };
+  quotations?: Array<{ vendorId?: string; selectedMaterialIds?: string[] }>;
+} | null | undefined): boolean {
+  const vendors = data?.comparison?.vendors || data?.quotations || [];
+  return vendors.some((v) => Boolean(v.vendorId));
+}
