@@ -24,7 +24,7 @@ import {
   type VendorQuotationDraft,
 } from '@/components/VendorQuotationEditor';
 import { RfqVendorShareList, mergeAssignedVendors } from '@/components/RfqVendorShareList';
-import { draftsFromComparison, onlyAssignedDrafts } from '@/lib/rfqVendorAssignments';
+import { onlyAssignedDrafts } from '@/lib/rfqVendorAssignments';
 import { cn } from '@/lib/utils';
 
 import { DetailFieldInline, DetailFieldRow } from '@/components/ui/DetailFields';
@@ -40,10 +40,10 @@ export function RfqWizardPage() {
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
   const preselectedPrId = searchParams.get('purchaseRequestId');
-  const resumeRfq = searchParams.get('resume') === '1';
   const accent = ROLE_COLORS[UserRole.EXECUTIVE].primary;
 
   const [step, setStep] = useState(0);
+  const [existingRfqChecked, setExistingRfqChecked] = useState(!preselectedPrId);
   const [selectedPr, setSelectedPr] = useState<PurchaseRequestDto | null>(null);
   const [selectedMr, setSelectedMr] = useState<MaterialRequestDto | null>(null);
   /** Material IDs skipped from RFQ (stock-covered by default). */
@@ -157,17 +157,7 @@ export function RfqWizardPage() {
       setRfqId(data.rfqId);
       setRfqNumber(data.rfqNumber);
       setComparison(data);
-      // Merge rather than overwrite: preserve vendors the user already picked in this
-      // session (not yet saved) when re-entering this step after going back.
-      setDrafts((prev) => {
-        const fresh = draftsFromComparison(data);
-        if (!prev.length) return fresh;
-        const byVendor = new Map(fresh.map((d) => [d.vendorId, d]));
-        for (const draft of prev) {
-          if (!byVendor.has(draft.vendorId)) byVendor.set(draft.vendorId, draft);
-        }
-        return Array.from(byVendor.values());
-      });
+      // Do not hydrate vendors from the saved RFQ — reopen should not auto-select them.
       setStep(2);
     },
     onError: (e: Error & { response?: { data?: { message?: string } } }) => {
@@ -201,8 +191,16 @@ export function RfqWizardPage() {
   });
 
   const selectPurchaseRequest = async (pr: PurchaseRequestDto) => {
+    if (pr.rfqId) {
+      navigate(`/rfqs/${pr.rfqId}`, { replace: true });
+      return;
+    }
     setSelectingPr(true);
     setSelectedPr(pr);
+    setDrafts([]);
+    setRfqId(null);
+    setRfqNumber('');
+    setComparison(null);
     try {
       if (pr.materialRequestId) {
         const res = await api.get<{ data: MaterialRequestDto }>(
@@ -232,32 +230,37 @@ export function RfqWizardPage() {
   };
 
   useEffect(() => {
-    if (!preselectedPrId || selectedPr || prLoading || selectingPr) return;
+    if (!preselectedPrId) return;
+    let cancelled = false;
+    void (async () => {
+      try {
+        const res = await api.get<{ data: { rfqId?: string } | null }>(
+          `/rfqs/by-pr/${preselectedPrId}`
+        );
+        const existingId = res.data.data?.rfqId;
+        if (!cancelled && existingId) {
+          navigate(`/rfqs/${existingId}`, { replace: true });
+          return;
+        }
+      } catch {
+        /* no existing RFQ — continue creating */
+      }
+      if (!cancelled) setExistingRfqChecked(true);
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [preselectedPrId, navigate]);
+
+  useEffect(() => {
+    if (!preselectedPrId || !existingRfqChecked || selectedPr || prLoading || selectingPr) return;
     const pr = preselectedFromList || preselectedPurchaseRequest;
     if (!pr) return;
-    void (async () => {
-      await selectPurchaseRequest(pr);
-      if (resumeRfq) {
-        const mr = (
-          await api.get<{ data: MaterialRequestDto }>(`/material-requests/${pr.materialRequestId}`)
-        ).data.data;
-        const includeIds = (mr.items || [])
-          .map((item) => {
-            const materialId = (item.materialId || item.material?.id || '') as string;
-            const requested = item.quantityRequested ?? item.requestedQty ?? 0;
-            const available = item.availableQty ?? 0;
-            const required =
-              item.requiredQty != null ? item.requiredQty : Math.max(0, requested - available);
-            return required > 0 ? materialId : null;
-          })
-          .filter(Boolean) as string[];
-        previewRfq.mutate({ purchaseRequestId: pr.id, includeIds });
-      }
-    })();
+    void selectPurchaseRequest(pr);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [
     preselectedPrId,
-    resumeRfq,
+    existingRfqChecked,
     preselectedFromList,
     preselectedPurchaseRequest,
     prLoading,
@@ -291,6 +294,12 @@ export function RfqWizardPage() {
         <h1 className="font-semibold text-ink">Create RFQ</h1>
       </header>
 
+      {preselectedPrId && !existingRfqChecked ? (
+        <div className="flex-1 px-4 pb-6">
+          <div className="h-32 rounded-2xl bg-surface-muted animate-pulse" />
+        </div>
+      ) : (
+        <>
       <StepIndicator current={step} total={STEPS.length} accentColor={accent} labels={STEPS} />
       <p className="text-center text-xs text-ink-secondary mb-2 px-4">{STEPS[step]}</p>
 
@@ -536,6 +545,8 @@ export function RfqWizardPage() {
           )}
         </AnimatePresence>
       </div>
+        </>
+      )}
     </div>
   );
 }

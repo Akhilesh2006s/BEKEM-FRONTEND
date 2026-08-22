@@ -72,10 +72,8 @@ export function ExecutiveRfqListPage({ browseOnly = false }: ExecutiveRfqListPag
     if (!browseOnly) refetchPrs();
   };
 
-  const startRfq = (purchaseRequestId: string, resume = false) => {
-    const params = new URLSearchParams({ purchaseRequestId });
-    if (resume) params.set('resume', '1');
-    navigate(`/executive/rfq/new?${params.toString()}`);
+  const startRfq = (purchaseRequestId: string) => {
+    navigate(`/executive/rfq/new?purchaseRequestId=${purchaseRequestId}`);
   };
 
   return (
@@ -142,7 +140,7 @@ export function ExecutiveRfqListPage({ browseOnly = false }: ExecutiveRfqListPag
             <section className="mb-6">
               <h2 className="section-label mb-3">Ready for RFQ</h2>
               <p className="text-xs text-ink-secondary mb-3">
-                Same list as Create RFQ step 1 — tap a request to start or continue the RFQ wizard.
+                Same list as Create RFQ step 1 — tap a request to start a new RFQ. Existing RFQs open from All RFQs below.
               </p>
               <div className="table-shell">
                 <table className="data-table min-w-[72rem]">
@@ -160,7 +158,6 @@ export function ExecutiveRfqListPage({ browseOnly = false }: ExecutiveRfqListPag
                   <tbody>
                     {readyPurchaseRequests.map((pr) => {
                       const rfq = rfqByPrId.get(pr.id);
-                      const isOpen = rfq?.status === 'OPEN';
 
                       return (
                         <tr key={pr.id}>
@@ -179,10 +176,10 @@ export function ExecutiveRfqListPage({ browseOnly = false }: ExecutiveRfqListPag
                               variant="primary"
                               size="sm"
                               onClick={() =>
-                                isOpen ? navigate(`/rfqs/${rfq!.id}`) : startRfq(pr.id, false)
+                                rfq ? navigate(`/rfqs/${rfq.id}`) : startRfq(pr.id)
                               }
                             >
-                              {isOpen ? 'Await quotes' : 'Create RFQ'}
+                              {rfq ? 'Open RFQ' : 'Create RFQ'}
                             </Button>
                           </td>
                         </tr>

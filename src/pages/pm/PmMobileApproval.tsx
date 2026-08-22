@@ -6,7 +6,7 @@ import { api } from '@/lib/api';
 import { approvalCapDayKey } from '@/lib/approvalCapDay';
 import { requireBiometricConfirm } from '@/lib/biometricGate';
 import type { DailyCapDto, MaterialRequestDto } from '@afios/shared';
-import { formatProjectLabel } from '@afios/shared';
+import { formatProjectLabel, indentExceedsPmApprovalLevel, PM_ABOVE_APPROVAL_LEVEL_MESSAGE } from '@afios/shared';
 import { Button } from '@/components/ui/Button';
 import { PageHeader } from '@/components/layout/PageHeader';
 import { ListQueryBoundary } from '@/components/ListQueryBoundary';
@@ -37,16 +37,21 @@ export function PmMobileApprovalPage() {
 
   const stockAvailable = Boolean(request?.canFullyIssue);
   const isBelowCap = request?.indentRequestType === 'BELOW_5000';
-  /** Stock alone isn't enough for above-cap indents — the PM's daily cap must also allow it. */
+  const exceedsPmApprovalLevel = indentExceedsPmApprovalLevel(
+    request?.estimatedValue,
+    request?.indentRequestType
+  );
+  /** Daily cap is a separate check — only for indents still within the PM per-indent limit. */
   const wouldExceedPmCap = Boolean(
     !isBelowCap &&
+      !exceedsPmApprovalLevel &&
       pmDailyCap &&
       pmDailyCap.dailyApprovedTotal + (request?.estimatedValue || 0) > pmDailyCap.dailyCap
   );
   const showForwardToHo =
-    request?.status === 'FORWARDED_TO_PM' && !stockAvailable;
+    request?.status === 'FORWARDED_TO_PM' && (!stockAvailable || exceedsPmApprovalLevel);
   const showApprove =
-    request?.status === 'FORWARDED_TO_PM' && stockAvailable;
+    request?.status === 'FORWARDED_TO_PM' && stockAvailable && !exceedsPmApprovalLevel;
   const showProceedAllocation = Boolean(
     request && isInAllocationReview(request) && isCurrentAllocationOwner(request, 'PROJECT_MANAGER')
   );
@@ -82,12 +87,15 @@ export function PmMobileApprovalPage() {
     mutationFn: async () => {
       const ok = await requireBiometricConfirm('Forward to Head Office');
       if (!ok) throw new Error('Biometric confirmation cancelled');
-      await api.post(`/material-requests/${id}/forward-to-ho`, {
-        remark: 'Forwarded to HO for stock requisition via mobile',
+      const res = await api.post<{ message?: string }>(`/material-requests/${id}/forward-to-ho`, {
+        remark: exceedsPmApprovalLevel
+          ? 'Forwarded to HO — indent exceeds PM approval level'
+          : 'Forwarded to HO for stock requisition via mobile',
       });
+      return res.data.message;
     },
-    onSuccess: () => {
-      toast.success('Forwarded to HO for stock requisition');
+    onSuccess: (message) => {
+      toast.success(message || 'Forwarded to Head Office for further approval');
       queryClient.invalidateQueries({ queryKey: ['pm-approvals'] });
       navigate('/pm/material-indents?tab=pending&queue=approved-store');
     },
@@ -192,9 +200,24 @@ export function PmMobileApprovalPage() {
                   <dt className="text-ink-muted text-xs uppercase tracking-wide">Requested by</dt>
                   <dd className="font-medium">{request.requester?.name || '—'}</dd>
                 </div>
-                {stockAvailable && wouldExceedPmCap ? (
+                {exceedsPmApprovalLevel ? (
+                  <>
+                    <div className="text-amber-800 text-xs font-medium bg-amber-50 rounded-lg px-3 py-2">
+                      {PM_ABOVE_APPROVAL_LEVEL_MESSAGE}
+                    </div>
+                    <div
+                      className={`text-xs font-medium rounded-lg px-3 py-2 ${
+                        stockAvailable
+                          ? 'text-emerald-700 bg-emerald-50'
+                          : 'text-amber-800 bg-amber-50'
+                      }`}
+                    >
+                      {stockAvailable ? 'Stock is available at site.' : 'Stock is short at site.'}
+                    </div>
+                  </>
+                ) : stockAvailable && wouldExceedPmCap ? (
                   <div className="text-amber-800 text-xs font-medium bg-amber-50 rounded-lg px-3 py-2">
-                    Stock available, but daily approval cap is reached — Approve to forward to HO
+                    Daily approval cap is reached — this indent must go to Head Office
                   </div>
                 ) : stockAvailable ? (
                   <div className="text-emerald-700 text-xs font-medium bg-emerald-50 rounded-lg px-3 py-2">
@@ -230,7 +253,9 @@ export function PmMobileApprovalPage() {
                   onClick={() => forwardHo.mutate()}
                 >
                   <Send className="h-5 w-5 mr-2" />
-                  Forward to HO for Stock Procurement
+                  {exceedsPmApprovalLevel
+                    ? 'Forward to HO for further approval'
+                    : 'Forward to HO for Stock Procurement'}
                 </Button>
               )}
               {showProceedAllocation && (

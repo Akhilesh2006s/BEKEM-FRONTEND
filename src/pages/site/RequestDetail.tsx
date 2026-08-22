@@ -17,6 +17,8 @@ import {
   INDENT_REQUEST_TYPE_LABELS,
   canEditIndentOneLevelAhead,
   formatProjectLabel,
+  indentExceedsPmApprovalLevel,
+  PM_ABOVE_APPROVAL_LEVEL_MESSAGE,
 } from '@afios/shared';
 import type {
   MaterialRequestDto,
@@ -235,7 +237,7 @@ export function RequestDetailPage() {
       return res.data;
     },
     onSuccess: (data) => {
-      toast.success(data.message || 'Forwarded to HO for stock requisition');
+      toast.success(data.message || 'Forwarded to Head Office for further approval');
       setPmRemark('');
       queryClient.invalidateQueries({ queryKey: ['material-request', id] });
       queryClient.invalidateQueries({ queryKey: ['pm-approvals'] });
@@ -361,21 +363,30 @@ export function RequestDetailPage() {
   const showBranchTransfer = Boolean(
     pmCanActOnIndent && !stockAvailable && otherStockAvailable && remainingAfterExisting > 0
   );
-  /** Remaining shortfall after takes / existing BTs still goes to Head Office. */
+  const exceedsPmApprovalLevel = indentExceedsPmApprovalLevel(
+    request?.estimatedValue,
+    request?.indentRequestType
+  );
+  /** Remaining shortfall after takes / existing BTs still goes to Head Office.
+   *  Indents above the PM per-indent approval limit also go to HO even when stock is available. */
   const showForwardToHo = Boolean(
-    pmCanActOnIndent && !stockAvailable && remainingAfterTakes > 0 && totalTaking === 0
+    pmCanActOnIndent &&
+      remainingAfterTakes > 0 &&
+      totalTaking === 0 &&
+      (!stockAvailable || exceedsPmApprovalLevel)
   );
-  const showPmApprove = Boolean(canPmDecide && stockAvailable);
+  const showPmApprove = Boolean(canPmDecide && stockAvailable && !exceedsPmApprovalLevel);
   const showPmDecisionPanel = Boolean(
-    pmCanActOnIndent && (showPmApprove || remainingAfterExisting > 0)
+    pmCanActOnIndent && (showPmApprove || remainingAfterExisting > 0 || exceedsPmApprovalLevel)
   );
-  /** Stock alone isn't enough for above-cap indents — the PM's daily cap must also allow it. */
+  /** Daily cap is a separate check — only for indents still within the PM per-indent limit. */
   const wouldExceedPmCap = Boolean(
     !isBelowCap &&
+      !exceedsPmApprovalLevel &&
       pmDailyCap &&
       pmDailyCap.dailyApprovedTotal + (request?.estimatedValue || 0) > pmDailyCap.dailyCap
   );
-  const pmApproveClosesAtPm = stockAvailable && !wouldExceedPmCap;
+  const pmApproveClosesAtPm = showPmApprove && !wouldExceedPmCap;
 
   useApprovalShortcuts({
     enabled: showPmApprove && !isLoading,
@@ -530,7 +541,9 @@ export function RequestDetailPage() {
         </p>
       )}
 
-      {canPmDecide && !isBelowCap && showPmApprove && <PmDailyCapBanner cap={pmDailyCap} />}
+      {canPmDecide && !isBelowCap && !exceedsPmApprovalLevel && showPmApprove && (
+        <PmDailyCapBanner cap={pmDailyCap} />
+      )}
 
       {canCoordinatorLocalClose && <CoordinatorDailyCapBanner cap={coordinatorCap} />}
 
@@ -543,8 +556,7 @@ export function RequestDetailPage() {
 
       {request.escalatedToHo && !isBelowCap && (
         <div className="mb-4 rounded-xl border border-warning/30 bg-warning/5 px-3 py-2 text-sm">
-          This indent was escalated to Head Office — it exceeds the PM&apos;s configurable daily
-          approval limit (see Admin settings).
+          This indent was forwarded to Head Office for further approval.
         </div>
       )}
 
@@ -969,25 +981,42 @@ export function RequestDetailPage() {
           <div className="grid gap-3 lg:grid-cols-2">
             <div>
               <p className="text-sm font-semibold text-ink">PM decision</p>
-              <p className="text-xs text-ink-secondary mt-1">
-                {isBelowCap
-                  ? stockAvailable
-                    ? 'Below ₹5,000 and stock is available — Approve to close at PM and reserve stock for Store to issue.'
-                    : showBranchTransfer
-                      ? `Below ₹5,000 and this site is short. Take from other projects (currently ${totalTaking} of ${remainingAfterExisting}), then forward the remaining ${remainingAfterTakes} to Head Office if needed.`
-                      : remainingAfterExisting > 0
-                        ? `Below ₹5,000 — ${remainingAfterExisting} still needed. Forward remaining to Head Office for procurement.`
-                        : 'Below ₹5,000 and stock is short — Forward to Head Office for procurement.'
-                  : stockAvailable
-                    ? wouldExceedPmCap
-                      ? `Stock is available, but your ₹${(pmDailyCap?.dailyCap ?? 5000).toLocaleString('en-IN')}/day approval cap is reached — Approve to forward this indent to Head Office instead of closing at PM.`
-                      : 'Stock is available at site — Approve to close at PM and reserve allocation so Store can issue.'
-                    : showBranchTransfer
-                      ? `This site is short. Take qty from one or more assigned projects (currently ${totalTaking} of ${remainingAfterExisting}). Remaining ${remainingAfterTakes} can still go to Head Office.`
-                      : remainingAfterExisting > 0
-                        ? `${remainingAfterExisting} still needed after branch transfers. Forward remaining to Head Office for stock requisition.`
-                        : 'Stock is short at site. Forward to Head Office for stock requisition / procurement.'}
-              </p>
+              {exceedsPmApprovalLevel ? (
+                <>
+                  <p className="text-xs text-ink-secondary mt-1">
+                    {PM_ABOVE_APPROVAL_LEVEL_MESSAGE}
+                  </p>
+                  <p className="text-xs text-ink-muted mt-1">
+                    {stockAvailable
+                      ? 'Stock is available at site.'
+                      : showBranchTransfer
+                        ? `This site is short. Take qty from one or more assigned projects (currently ${totalTaking} of ${remainingAfterExisting}). Remaining ${remainingAfterTakes} can still go to Head Office.`
+                        : remainingAfterExisting > 0
+                          ? `${remainingAfterExisting} still needed after branch transfers.`
+                          : 'Stock is short at site.'}
+                  </p>
+                </>
+              ) : (
+                <p className="text-xs text-ink-secondary mt-1">
+                  {isBelowCap
+                    ? stockAvailable
+                      ? 'Below ₹5,000 and stock is available — Approve to close at PM and reserve stock for Store to issue.'
+                      : showBranchTransfer
+                        ? `Below ₹5,000 and this site is short. Take from other projects (currently ${totalTaking} of ${remainingAfterExisting}), then forward the remaining ${remainingAfterTakes} to Head Office if needed.`
+                        : remainingAfterExisting > 0
+                          ? `Below ₹5,000 — ${remainingAfterExisting} still needed. Forward remaining to Head Office for procurement.`
+                          : 'Below ₹5,000 and stock is short — Forward to Head Office for procurement.'
+                    : stockAvailable
+                      ? wouldExceedPmCap
+                        ? `Your ₹${(pmDailyCap?.dailyCap ?? 5000).toLocaleString('en-IN')}/day approval cap is reached — this indent must go to Head Office.`
+                        : 'Stock is available at site — Approve to close at PM and reserve allocation so Store can issue.'
+                      : showBranchTransfer
+                        ? `This site is short. Take qty from one or more assigned projects (currently ${totalTaking} of ${remainingAfterExisting}). Remaining ${remainingAfterTakes} can still go to Head Office.`
+                        : remainingAfterExisting > 0
+                          ? `${remainingAfterExisting} still needed after branch transfers. Forward remaining to Head Office for stock requisition.`
+                          : 'Stock is short at site. Forward to Head Office for stock requisition / procurement.'}
+                </p>
+              )}
               {showBranchTransfer && totalRequested > 0 ? (
                 <p className="mt-2 text-xs font-medium tabular-nums text-ink">
                   Taking {totalAlready + totalTaking} of {totalRequested}
@@ -1010,11 +1039,13 @@ export function RequestDetailPage() {
                   placeholder={
                     totalTaking > 0
                       ? 'Why take this stock from the selected project sites…'
-                      : showForwardToHo
-                      ? remainingAfterExisting < totalRequested
-                        ? 'Reason for remaining stock requisition to Head Office…'
-                        : 'Reason for stock requisition to Head Office…'
-                      : 'Decision rationale — visible in audit trail to all approvers…'
+                      : exceedsPmApprovalLevel
+                        ? 'Reason for forwarding to Head Office for further approval…'
+                        : showForwardToHo
+                          ? remainingAfterExisting < totalRequested
+                            ? 'Reason for remaining stock requisition to Head Office…'
+                            : 'Reason for stock requisition to Head Office…'
+                          : 'Decision rationale — visible in audit trail to all approvers…'
                   }
                 />
                 {pmRemarkError && <p className="text-xs text-danger mt-1">{pmRemarkError}</p>}
@@ -1090,9 +1121,11 @@ export function RequestDetailPage() {
                     forwardToHo.mutate(pmRemark.trim());
                   }}
                 >
-                  {remainingAfterExisting < totalRequested
-                    ? `Forward remaining ${remainingAfterTakes} to HO`
-                    : 'Forward to HO for Stock Procurement'}
+                  {exceedsPmApprovalLevel
+                    ? 'Forward to HO for further approval'
+                    : remainingAfterExisting < totalRequested
+                      ? `Forward remaining ${remainingAfterTakes} to HO`
+                      : 'Forward to HO for Stock Procurement'}
                 </Button>
               )}
               {totalTaking > 0 && remainingAfterTakes > 0 ? (
