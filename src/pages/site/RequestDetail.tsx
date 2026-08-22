@@ -736,8 +736,14 @@ export function RequestDetailPage() {
                     {item.quantityIssued ?? 0} {item.unit || item.material?.unit || ''}
                   </td>
                   {showAvailableToIssue && (
-                    <td className="num tabular-nums font-semibold text-emerald-700">
-                      {item.availableToIssueQty ?? 0} {item.unit || item.material?.unit || ''}
+                    <td
+                      className={`num tabular-nums font-semibold ${
+                        (item.availableQty ?? 0) >= (item.quantityRequested ?? 0)
+                          ? 'text-emerald-700'
+                          : 'text-warning-dark'
+                      }`}
+                    >
+                      {item.availableQty ?? 0} {item.unit || item.material?.unit || ''}
                     </td>
                   )}
                   <td className="num tabular-nums">

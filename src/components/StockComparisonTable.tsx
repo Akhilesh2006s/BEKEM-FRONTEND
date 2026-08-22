@@ -10,7 +10,7 @@ interface StockComparisonTableProps {
   showPricing?: boolean;
   /** Show GRN/issue fulfillment quantities instead of the legacy allocated column. */
   showFulfillment?: boolean;
-  /** Hide store-only "Available to issue" (e.g. Indent raiser). */
+  /** Hide live store stock in fulfillment tables (e.g. Indent raiser). */
   showAvailableToIssue?: boolean;
   /** Show live store stock beside requested qty (allocate / review flows). */
   showAvailableStock?: boolean;
@@ -25,7 +25,6 @@ function lineItems(items: IndentLineItemDto[]) {
     const allocatedQty = item.quantityAllocated ?? 0;
     const receivedQty = item.quantityReceived ?? 0;
     const issuedQty = item.quantityIssued ?? 0;
-    const availableToIssueQty = item.availableToIssueQty ?? 0;
     const pendingReceiptQty = item.pendingReceiptQty ?? Math.max(0, requestedQty - receivedQty);
     const unitPrice = item.unitPrice ?? null;
     const lineTotal =
@@ -40,7 +39,6 @@ function lineItems(items: IndentLineItemDto[]) {
       allocatedQty,
       receivedQty,
       issuedQty,
-      availableToIssueQty,
       pendingReceiptQty,
       requiredQty: computeRequiredQty(requestedQty, availableQty),
       unitPrice,
@@ -134,8 +132,15 @@ export function StockComparisonTable({
                     <td className="num">{formatQuantity(row.receivedQty, row.unit)}</td>
                     <td className="num">{formatQuantity(row.issuedQty, row.unit)}</td>
                     {showAvailableToIssue && (
-                      <td className="num font-medium text-emerald-700">
-                        {formatQuantity(row.availableToIssueQty, row.unit)}
+                      <td
+                        className={cn(
+                          'num font-medium',
+                          row.availableQty >= row.requestedQty
+                            ? 'text-emerald-700'
+                            : 'text-warning-dark'
+                        )}
+                      >
+                        {formatQuantity(row.availableQty, row.unit)}
                       </td>
                     )}
                     <td className="num">{formatQuantity(row.pendingReceiptQty, row.unit)}</td>
