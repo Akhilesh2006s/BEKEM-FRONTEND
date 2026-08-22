@@ -77,7 +77,7 @@ export function ExecutiveRfqListPage({ browseOnly = false }: ExecutiveRfqListPag
   };
 
   const openRfq = (rfq: RfqListItemDto) => {
-    if (!browseOnly && rfq.purchaseRequestId && !(rfq.assignedVendorCount > 0)) {
+    if (!browseOnly && rfq.purchaseRequestId && !((rfq.assignedVendorCount || 0) > 0)) {
       startRfq(rfq.purchaseRequestId);
       return;
     }
