@@ -38,7 +38,7 @@ export function IssueMaterialPage() {
         empty={
           <EmptyState
             title="Nothing ready to issue"
-            description="Complete a Stock Received entry in Material GRN. Those indents then appear here."
+            description="Indents appear here after Stock Received on Material GRN, or when stock was already reserved from store."
           />
         }
       >

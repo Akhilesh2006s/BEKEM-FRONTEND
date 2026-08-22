@@ -294,7 +294,8 @@ export function RequestDetailPage() {
     ['FORWARDED_TO_PM', 'BRANCH_TRANSFER_REQUESTED'].includes(request.status) &&
     !request.escalatedToHo;
   const storeReadyToAllocate =
-    role === UserRole.STORE_INCHARGE && request?.status === 'MATERIAL_RECEIVED';
+    role === UserRole.STORE_INCHARGE &&
+    ['MATERIAL_RECEIVED', 'ALLOCATED'].includes(request?.status || '');
   const showProceedAllocationPanel = Boolean(
     request &&
       (([UserRole.EXECUTIVE, UserRole.PROJECT_MANAGER].includes(role) &&
@@ -317,7 +318,9 @@ export function RequestDetailPage() {
           ? 'Store In-Charge'
           : 'current owner';
   const proceedAllocationHint = storeReadyToAllocate
-    ? 'Stock received. Proceed with Allocation to allocate this indent to the indent raiser.'
+    ? request?.status === 'ALLOCATED'
+      ? 'Stock is available and reserved. Proceed with Allocation to allocate this indent to the indent raiser.'
+      : 'Stock received. Proceed with Allocation to allocate this indent to the indent raiser.'
     : allocationStage === UserRole.EXECUTIVE
       ? 'PO is approved. Proceed with Allocation to send this indent to the Project Manager.'
       : allocationStage === UserRole.PROJECT_MANAGER
