@@ -87,8 +87,11 @@ export function formatIndentQueueStatus(
   if (stage === 'SITE_INCHARGE' || status === 'ISSUED') {
     return 'Issued to site';
   }
+  if (status === 'MATERIAL_RECEIVED') {
+    return 'Received';
+  }
   if (stage === 'STORE_INCHARGE') {
-    return 'Awaiting at Store In-Charge';
+    return 'Yet to be Received';
   }
   if (stage === 'PROJECT_MANAGER') {
     return 'Awaiting at Project Manager';
@@ -126,7 +129,7 @@ export function formatIndentQueueStatus(
     case 'CHAIRMAN_PENDING':
       return `Approved by ${roleLabel(UserRole.COORDINATOR)}`;
     case 'MATERIAL_RECEIVED':
-      return `Awaiting issue by ${roleLabel(UserRole.STORE_INCHARGE)}`;
+      return 'Received';
     case 'ISSUED':
       return 'Issued to site';
     default:

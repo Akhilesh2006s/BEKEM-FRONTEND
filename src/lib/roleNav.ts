@@ -76,7 +76,7 @@ export function getRoleNavShortcuts(
         ...common,
         { id: 'new-request', label: 'New indent', href: '/request/new', icon: FilePlus, section: 'workspace' },
         { id: 'my-indents', label: 'My indents', href: '/store/requests', icon: FileText, section: 'workspace' },
-        { id: 'grn', label: 'Material receipt (GRN)', href: '/store/grn', icon: Package, section: 'workspace' },
+        { id: 'grn', label: 'Material GRN', href: '/store/grn', icon: Package, section: 'workspace' },
         { id: 'issue', label: 'Issue to site', href: '/store/issue', icon: FilePlus, section: 'workspace' },
         { id: 'stock', label: 'Live stock balance', href: '/store/stock', icon: Package, section: 'workspace' },
         { id: 'registers', label: 'Registers', href: '/store/registers', icon: FileText, section: 'workspace' },

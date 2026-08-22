@@ -182,7 +182,7 @@ export function RequestDetailPage() {
               ? 'Proceeded with allocation — stock reserved for Store to issue'
               : 'Proceeded with allocation — sent to Store In-Charge'
             : data.status === 'ISSUED'
-              ? 'Issued to site — indent raiser can collect & verify'
+              ? 'Allocated to indent raiser — they can collect & verify'
               : 'Proceeded with allocation'
       );
       setPmRemark('');
@@ -293,18 +293,19 @@ export function RequestDetailPage() {
     role === UserRole.PROJECT_MANAGER &&
     ['FORWARDED_TO_PM', 'BRANCH_TRANSFER_REQUESTED'].includes(request.status) &&
     !request.escalatedToHo;
-  const allocationReviewerRoles = [
-    UserRole.EXECUTIVE,
-    UserRole.PROJECT_MANAGER,
-    UserRole.STORE_INCHARGE,
-  ];
+  const storeReadyToAllocate =
+    role === UserRole.STORE_INCHARGE && request?.status === 'MATERIAL_RECEIVED';
   const showProceedAllocationPanel = Boolean(
     request &&
-      allocationReviewerRoles.includes(role) &&
-      isInAllocationReview(request)
+      (([UserRole.EXECUTIVE, UserRole.PROJECT_MANAGER].includes(role) &&
+        isInAllocationReview(request)) ||
+        storeReadyToAllocate)
   );
   const canClickProceedAllocation = Boolean(
-    request && isCurrentAllocationOwner(request, role)
+    request &&
+      (storeReadyToAllocate ||
+        ([UserRole.EXECUTIVE, UserRole.PROJECT_MANAGER].includes(role) &&
+          isCurrentAllocationOwner(request, role)))
   );
   const allocationStage = request ? resolveAllocationReviewStage(request) : null;
   const allocationOwnerLabel =
@@ -315,8 +316,9 @@ export function RequestDetailPage() {
         : allocationStage === UserRole.STORE_INCHARGE
           ? 'Store In-Charge'
           : 'current owner';
-  const proceedAllocationHint =
-    allocationStage === UserRole.EXECUTIVE
+  const proceedAllocationHint = storeReadyToAllocate
+    ? 'Stock received. Proceed with Allocation to allocate this indent to the indent raiser.'
+    : allocationStage === UserRole.EXECUTIVE
       ? 'PO is approved. Proceed with Allocation to send this indent to the Project Manager.'
       : allocationStage === UserRole.PROJECT_MANAGER
         ? 'Executive proceeded with allocation. Proceed with Allocation to send this indent to Store In-Charge.'

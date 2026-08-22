@@ -144,7 +144,7 @@ const STATUS_LABELS: Record<string, string> = {
   PENDING: 'Pending',
   PENDING_PM: 'Awaiting PM',
   PM_VERIFIED: 'Verified',
-  MATERIAL_RECEIVED: 'Material received',
+  MATERIAL_RECEIVED: 'Received',
   ISSUED: 'Issued',
   APPROVED: 'Approved',
   ACTIVE: 'Active',
