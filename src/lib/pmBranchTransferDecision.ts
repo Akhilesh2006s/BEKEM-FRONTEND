@@ -89,7 +89,14 @@ export function remainingNeedAfterCurrentAndTransfers(
 export function pmStockDecisionFromIndent(request: MaterialRequestDto): PmStockDecisionDto | null {
   if (request.pmStockDecision) return request.pmStockDecision;
 
-  const items = request.items?.length
+  const items: Array<{
+    materialId?: string;
+    quantityRequested?: number;
+    requestedQty?: number;
+    availableQty?: number;
+    unit?: string;
+    material?: MaterialRequestDto['material'];
+  }> = request.items?.length
     ? request.items
     : request.materialId
       ? [
@@ -97,6 +104,7 @@ export function pmStockDecisionFromIndent(request: MaterialRequestDto): PmStockD
             materialId: request.materialId,
             quantityRequested: request.quantityRequested || 0,
             availableQty: 0,
+            unit: request.material?.unit,
             material: request.material,
           },
         ]
