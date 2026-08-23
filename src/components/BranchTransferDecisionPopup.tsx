@@ -12,8 +12,10 @@ export function BranchTransferDecisionPopup({
   className,
 }: BranchTransferDecisionPopupProps) {
   const viable = decision.branchTransferViable;
-  const lines = decision.lines.filter((l) => l.shortfallAfterCurrent > 0);
-  const displayLines = lines.length ? lines : decision.lines;
+  const displayLines = decision.lines.filter(
+    (l) => l.currentProjectAvailableQty + l.alreadyCoveredQty < l.requiredQty
+  );
+  const linesToShow = displayLines.length ? displayLines : decision.lines;
 
   return (
     <div className={cn('relative mb-1', className)} role="status" aria-live="polite">
@@ -30,11 +32,11 @@ export function BranchTransferDecisionPopup({
           Current project stock + other projects&apos; stock vs required quantity
         </p>
         <ul className="mt-2 space-y-2">
-          {displayLines.map((line) => {
-            const covers = line.shortfallAfterCombined <= 0;
+          {linesToShow.map((line) => {
+            const covers = line.combinedAvailableQty >= line.requiredQty;
             return (
               <li key={line.materialId} className="text-sm">
-                {displayLines.length > 1 && line.materialName ? (
+                {linesToShow.length > 1 && line.materialName ? (
                   <p className="text-xs font-medium text-ink mb-0.5">{line.materialName}</p>
                 ) : null}
                 <p className="font-semibold tabular-nums text-ink">
@@ -42,12 +44,15 @@ export function BranchTransferDecisionPopup({
                   {formatQuantity(line.otherProjectsAvailableQty)} ={' '}
                   {formatQuantity(line.combinedAvailableQty)}
                   <span className="mx-1 text-ink-muted">{covers ? '≥' : '<'}</span>
-                  {formatQuantity(line.remainingNeedQty || line.requiredQty)}
+                  {formatQuantity(line.requiredQty)}
                 </p>
                 <p className="text-[11px] text-ink-muted tabular-nums">
                   Current {formatQuantity(line.currentProjectAvailableQty, line.unit)} · Other
                   projects {formatQuantity(line.otherProjectsAvailableQty, line.unit)} · Required{' '}
-                  {formatQuantity(line.remainingNeedQty || line.requiredQty, line.unit)}
+                  {formatQuantity(line.requiredQty, line.unit)}
+                  {line.alreadyCoveredQty > 0
+                    ? ` · Already requested via BT ${formatQuantity(line.alreadyCoveredQty, line.unit)}`
+                    : ''}
                 </p>
               </li>
             );

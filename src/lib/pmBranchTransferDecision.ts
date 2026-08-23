@@ -32,8 +32,14 @@ export function evaluatePmBranchTransferDecision(
     const alreadyCoveredQty = Math.max(0, Number(s.alreadyCoveredQty || 0));
     const remainingNeedQty = Math.max(0, requiredQty - alreadyCoveredQty);
     const combinedAvailableQty = currentProjectAvailableQty + otherProjectsAvailableQty;
-    const shortfallAfterCurrent = Math.max(0, remainingNeedQty - currentProjectAvailableQty);
-    const shortfallAfterCombined = Math.max(0, remainingNeedQty - combinedAvailableQty);
+    const shortfallAfterCurrent = Math.max(
+      0,
+      requiredQty - currentProjectAvailableQty - alreadyCoveredQty
+    );
+    const shortfallAfterCombined = Math.max(0, requiredQty - combinedAvailableQty);
+    const fulfilledByCurrentAndBt =
+      currentProjectAvailableQty + alreadyCoveredQty >= requiredQty;
+    const canCoverViaCombinedStock = combinedAvailableQty >= requiredQty;
     return {
       materialId: s.materialId,
       materialName: s.materialName,
@@ -46,15 +52,21 @@ export function evaluatePmBranchTransferDecision(
       remainingNeedQty,
       shortfallAfterCurrent,
       shortfallAfterCombined,
-      branchTransferViable: shortfallAfterCurrent > 0 && shortfallAfterCombined <= 0,
+      branchTransferViable:
+        !fulfilledByCurrentAndBt &&
+        currentProjectAvailableQty < requiredQty &&
+        canCoverViaCombinedStock,
     };
   });
 
-  const shortLines = evaluated.filter((l) => l.shortfallAfterCurrent > 0);
+  const unfulfilledLines = evaluated.filter(
+    (l) => l.currentProjectAvailableQty + l.alreadyCoveredQty < l.requiredQty
+  );
   return {
-    currentProjectInsufficient: shortLines.length > 0,
+    currentProjectInsufficient: unfulfilledLines.length > 0,
     branchTransferViable:
-      shortLines.length > 0 && shortLines.every((l) => l.shortfallAfterCombined <= 0),
+      unfulfilledLines.length > 0 &&
+      unfulfilledLines.every((l) => l.combinedAvailableQty >= l.requiredQty),
     lines: evaluated,
   };
 }
