@@ -26,6 +26,7 @@ import type {
   CreateIndentBranchTransfersDto,
   BranchTransferDto,
   DailyCapDto,
+  PmApprovalStateDto,
 } from '@afios/shared';
 import { Card } from '@/components/ui/Card';
 import { Button } from '@/components/ui/Button';
@@ -142,20 +143,38 @@ export function RequestDetailPage() {
 
   const pmLocalClose = useMutation({
     mutationFn: async (remark: string) => {
-      const res = await api.post<{ data: MaterialRequestDto }>(
-        `/material-requests/${id}/pm-local-close`,
-        { remark }
-      );
-      return res.data.data;
+      const res = await api.post<{
+        data: MaterialRequestDto;
+        message?: string;
+        pmApprovalState?: PmApprovalStateDto;
+      }>(`/material-requests/${id}/pm-local-close`, { remark });
+      return res.data;
     },
-    onSuccess: (data) => {
-      toast.success(
-        data.status === 'ALLOCATED'
-          ? 'Closed at PM — stock reserved for Store to issue'
-          : 'Approved'
-      );
+    onSuccess: (payload) => {
+      const data = payload.data;
+      const state = payload.pmApprovalState;
+      const firstStock = state?.stockByLine?.[0];
+      const stockBit =
+        firstStock != null
+          ? ` · stock now ${formatQuantity(firstStock.availableQty)}`
+          : '';
+      const capBit =
+        state != null
+          ? ` · ₹${state.remaining.toLocaleString('en-IN')} left today`
+          : '';
+      if (state?.decision === 'FORWARDED_STOCK') {
+        toast.message(
+          payload.message ||
+            `Insufficient current stock — forwarded to HO${stockBit}`
+        );
+      } else if (state?.decision === 'FORWARDED_DAILY_CAP' || data.status !== 'ALLOCATED') {
+        toast.message(payload.message || 'Forwarded to Head Office for approval');
+      } else {
+        toast.success(`Closed at PM — stock reserved${stockBit}${capBit}`);
+      }
       setPmRemark('');
       queryClient.invalidateQueries({ queryKey: ['material-request', id] });
+      queryClient.invalidateQueries({ queryKey: ['material-requests'] });
       queryClient.invalidateQueries({ queryKey: ['pm-approvals'] });
       queryClient.invalidateQueries({ queryKey: ['pm-daily-cap'] });
     },
@@ -546,8 +565,27 @@ export function RequestDetailPage() {
         </p>
       )}
 
-      {canPmDecide && !isBelowCap && !exceedsPmApprovalLevel && showPmApprove && (
+      {canPmDecide && !isBelowCap && !exceedsPmApprovalLevel && (
         <PmDailyCapBanner cap={pmDailyCap} />
+      )}
+      {canPmDecide && (
+        <div className="rounded-lg border border-surface-border bg-surface-muted/30 px-3 py-2 mb-3 text-sm">
+          <p className="font-medium text-ink">Current available stock</p>
+          <ul className="mt-1 space-y-0.5 text-xs tabular-nums text-ink-secondary">
+            {(items.length ? items : []).map((item) => (
+              <li key={item.id || item.materialId}>
+                {item.material?.name || 'Material'}: {formatQuantity(item.availableQty ?? 0)}{' '}
+                {item.unit || item.material?.unit || ''} available
+                {' · '}
+                {formatQuantity(item.requestedQty ?? item.quantityRequested ?? 0)} required
+              </li>
+            ))}
+          </ul>
+          <p className="text-[11px] text-ink-muted mt-1">
+            Live remaining stock after prior PM approvals today. Store still compares each indent
+            to total stock independently.
+          </p>
+        </div>
       )}
 
       {canCoordinatorLocalClose && <CoordinatorDailyCapBanner cap={coordinatorCap} />}
@@ -1014,7 +1052,7 @@ export function RequestDetailPage() {
                     : stockAvailable
                       ? wouldExceedPmCap
                         ? `Your ₹${(pmDailyCap?.dailyCap ?? 5000).toLocaleString('en-IN')}/day approval cap is reached — this indent must go to Head Office.`
-                        : 'Stock is available at site — Approve to close at PM and reserve allocation so Store can issue.'
+                        : 'Stock is available at site (current remaining after prior PM approvals today) — Approve to close at PM and reserve allocation so Store can issue.'
                       : showBranchTransfer
                         ? `This site is short. Take qty from one or more assigned projects (currently ${totalTaking} of ${remainingAfterExisting}). Remaining ${remainingAfterTakes} can still go to Head Office.`
                         : remainingAfterExisting > 0

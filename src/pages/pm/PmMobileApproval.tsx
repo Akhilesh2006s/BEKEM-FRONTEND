@@ -5,7 +5,7 @@ import { toast } from 'sonner';
 import { api } from '@/lib/api';
 import { approvalCapDayKey } from '@/lib/approvalCapDay';
 import { requireBiometricConfirm } from '@/lib/biometricGate';
-import type { DailyCapDto, MaterialRequestDto } from '@afios/shared';
+import type { DailyCapDto, MaterialRequestDto, PmApprovalStateDto } from '@afios/shared';
 import { formatProjectLabel, indentExceedsPmApprovalLevel, PM_ABOVE_APPROVAL_LEVEL_MESSAGE } from '@afios/shared';
 import { Button } from '@/components/ui/Button';
 import { PageHeader } from '@/components/layout/PageHeader';
@@ -63,17 +63,32 @@ export function PmMobileApprovalPage() {
         closesAtPm ? 'Close indent at PM' : 'Approve indent'
       );
       if (!ok) throw new Error('Biometric confirmation cancelled');
-      const res = await api.post<{ message?: string }>(`/material-requests/${id}/pm-local-close`, {
+      const res = await api.post<{
+        data: MaterialRequestDto;
+        message?: string;
+        pmApprovalState?: PmApprovalStateDto;
+      }>(`/material-requests/${id}/pm-local-close`, {
         remark: closesAtPm
           ? 'Closed at PM — stock available'
           : 'Approved',
       });
-      return res.data.message;
+      return res.data;
     },
-    onSuccess: (message) => {
-      toast.success(message || (closesAtPm ? 'Closed at PM — stock reserved' : 'Approved'));
+    onSuccess: (payload) => {
+      const state = payload.pmApprovalState;
+      const firstStock = state?.stockByLine?.[0];
+      const stockBit =
+        firstStock != null ? ` · stock now ${firstStock.availableQty}` : '';
+      const capBit =
+        state != null ? ` · ₹${state.remaining.toLocaleString('en-IN')} left today` : '';
+      if (state?.decision === 'FORWARDED_STOCK' || state?.decision === 'FORWARDED_DAILY_CAP') {
+        toast.message(payload.message || 'Forwarded to Head Office');
+      } else {
+        toast.success(payload.message || `Closed at PM — stock reserved${stockBit}${capBit}`);
+      }
       queryClient.invalidateQueries({ queryKey: ['pm-approvals'] });
       queryClient.invalidateQueries({ queryKey: ['pm-daily-cap'] });
+      queryClient.invalidateQueries({ queryKey: ['material-requests'] });
       navigate('/pm/material-indents?tab=pending&queue=approved-store');
     },
     onError: (e: Error & { response?: { data?: { message?: string } } }) => {
