@@ -1,6 +1,6 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useNavigate, useParams } from 'react-router-dom';
-import { Check, Fingerprint, Send, X } from 'lucide-react';
+import { Check, Fingerprint, Send, X, ArrowLeftRight } from 'lucide-react';
 import { toast } from 'sonner';
 import { api } from '@/lib/api';
 import { approvalCapDayKey } from '@/lib/approvalCapDay';
@@ -12,6 +12,7 @@ import { PageHeader } from '@/components/layout/PageHeader';
 import { ListQueryBoundary } from '@/components/ListQueryBoundary';
 import { StatusBadge } from '@/components/ui/StatusBadge';
 import { isInAllocationReview, isCurrentAllocationOwner } from '@/components/MaterialIndentsTable';
+import { otherProjectSitesWithStock } from '@/components/CrossProjectStockPanel';
 
 export function PmMobileApprovalPage() {
   const { id } = useParams<{ id: string }>();
@@ -37,6 +38,16 @@ export function PmMobileApprovalPage() {
 
   const stockAvailable = Boolean(request?.canFullyIssue);
   const isBelowCap = request?.indentRequestType === 'BELOW_5000';
+  const otherStockAvailable = Boolean(
+    request &&
+      otherProjectSitesWithStock(request.crossProjectStock || [], request.projectId).length
+  );
+  const showBranchTransfer = Boolean(
+    request &&
+      ['FORWARDED_TO_PM', 'BRANCH_TRANSFER_REQUESTED'].includes(request.status) &&
+      !request.escalatedToHo &&
+      otherStockAvailable
+  );
   const exceedsPmApprovalLevel = indentExceedsPmApprovalLevel(
     request?.estimatedValue,
     request?.indentRequestType
@@ -236,7 +247,14 @@ export function PmMobileApprovalPage() {
                   </div>
                 ) : stockAvailable ? (
                   <div className="text-emerald-700 text-xs font-medium bg-emerald-50 rounded-lg px-3 py-2">
-                    Stock available — Approve to close at PM and reserve for issue
+                    {showBranchTransfer
+                      ? 'Stock available at this site — Approve to close, or request a branch transfer from other projects.'
+                      : 'Stock available — Approve to close at PM and reserve for issue'}
+                  </div>
+                ) : showBranchTransfer ? (
+                  <div className="text-amber-800 text-xs font-medium bg-amber-50 rounded-lg px-3 py-2">
+                    This site is short, but other assigned projects have stock. Request a branch
+                    transfer, or forward remaining to Head Office.
                   </div>
                 ) : showForwardToHo ? (
                   <div className="text-amber-800 text-xs font-medium bg-amber-50 rounded-lg px-3 py-2">
@@ -259,9 +277,21 @@ export function PmMobileApprovalPage() {
                   {closesAtPm ? 'Approve & close at PM' : 'Approve'}
                 </Button>
               )}
+              {showBranchTransfer && (
+                <Button
+                  variant={showApprove ? 'secondary' : 'accent'}
+                  size="lg"
+                  className="h-14"
+                  disabled={busy}
+                  onClick={() => navigate(`/requests/${id}`)}
+                >
+                  <ArrowLeftRight className="h-5 w-5 mr-2" />
+                  Request branch transfer
+                </Button>
+              )}
               {showForwardToHo && (
                 <Button
-                  variant="accent"
+                  variant={showBranchTransfer || showApprove ? 'secondary' : 'accent'}
                   size="lg"
                   className="h-14"
                   disabled={busy}

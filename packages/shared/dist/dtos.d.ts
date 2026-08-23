@@ -154,6 +154,8 @@ export interface ProcurementDecisionDto {
     coordinatorProcurementRemark: string;
     canExecutiveDecide: boolean;
     canCoordinatorReview: boolean;
+    canFullyIssue?: boolean;
+    hasAvailableStock?: boolean;
     redirect?: {
         type: string;
         path: string;
@@ -465,7 +467,7 @@ export interface MaterialRequestDto {
     status: string;
     pendingWith?: string;
     /** Role that closed this indent locally when status is ALLOCATED (PM/Coordinator local close vs. Store's normal allocation). */
-    allocatedByRole?: 'PROJECT_MANAGER' | 'COORDINATOR' | 'STORE_INCHARGE' | null;
+    allocatedByRole?: 'PROJECT_MANAGER' | 'COORDINATOR' | 'STORE_INCHARGE' | 'EXECUTIVE' | null;
     approverNames?: {
         store?: string;
         pm?: string;
@@ -490,6 +492,12 @@ export interface MaterialRequestDto {
     allocationReviewStage?: 'EXECUTIVE' | 'PROJECT_MANAGER' | 'STORE_INCHARGE' | 'SITE_INCHARGE' | null;
     storeStockVerified?: boolean;
     storeStockReceivedAt?: string | null;
+    storeStockReceivedAttachments?: Array<{
+        name: string;
+        fileType?: string;
+        category?: 'INVOICE' | 'CHALLAN' | 'PHOTO';
+        url?: string;
+    }>;
     origin?: 'SITE' | 'EXECUTIVE';
     purchaseRequestId?: string;
     prNumber?: string;
@@ -544,6 +552,18 @@ export interface PmDailyCapDto {
     remaining: number;
 }
 export type DailyCapDto = PmDailyCapDto;
+export interface PmApprovalStockLineDto {
+    materialId: string;
+    requestedQty: number;
+    availableQty: number;
+}
+export interface PmApprovalStateDto {
+    decision: 'CLOSED_LOCAL' | 'FORWARDED_STOCK' | 'FORWARDED_DAILY_CAP' | 'USE_BRANCH_TRANSFER';
+    dailyApprovedTotal: number;
+    dailyCap: number;
+    remaining: number;
+    stockByLine: PmApprovalStockLineDto[];
+}
 export interface PmDashboardDto {
     pendingRequests: MaterialRequestDto[];
     approveQueue: MaterialRequestDto[];

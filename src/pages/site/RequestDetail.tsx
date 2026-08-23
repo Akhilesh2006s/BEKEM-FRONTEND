@@ -385,7 +385,7 @@ export function RequestDetailPage() {
     request?.projectId
   ).some((site) => !lockedSiteIds.includes(site.siteId));
   const showBranchTransfer = Boolean(
-    pmCanActOnIndent && !stockAvailable && otherStockAvailable && remainingAfterExisting > 0
+    pmCanActOnIndent && otherStockAvailable && remainingAfterExisting > 0
   );
   const exceedsPmApprovalLevel = indentExceedsPmApprovalLevel(
     request?.estimatedValue,
@@ -597,7 +597,7 @@ export function RequestDetailPage() {
         </div>
       )}
 
-      {request.escalatedToHo && !isBelowCap && (
+      {request.escalatedToHo && (
         <div className="mb-4 rounded-xl border border-warning/30 bg-warning/5 px-3 py-2 text-sm">
           This indent was forwarded to Head Office for further approval.
         </div>
@@ -881,8 +881,8 @@ export function RequestDetailPage() {
           <h2 className="font-semibold text-gray-900 mb-3">Stock at other projects</h2>
           <p className="text-xs text-ink-secondary mb-3">
             {showBranchTransfer
-              ? 'Enter how many to take from each site (up to available). You can take from more than one project. Any leftover still goes to Head Office.'
-              : 'Live stock on your other assigned projects and their sites — not this indent\u2019s project.'}
+              ? 'Take qty is for this indent\u2019s items only. Enter how many to take from each site (up to available). You can take from more than one project. Any leftover still goes to Head Office.'
+              : 'Live stock of this indent\u2019s items on your other assigned projects — not this indent\u2019s project.'}
           </p>
           <CrossProjectStockPanel
             rows={request.crossProjectStock}
@@ -1031,7 +1031,9 @@ export function RequestDetailPage() {
                   </p>
                   <p className="text-xs text-ink-muted mt-1">
                     {stockAvailable
-                      ? 'Stock is available at site.'
+                      ? showBranchTransfer
+                        ? 'This site can cover it, or take from other projects. Remaining still goes to Head Office for further approval.'
+                        : 'Stock is available at site.'
                       : showBranchTransfer
                         ? `This site is short. Take qty from one or more assigned projects (currently ${totalTaking} of ${remainingAfterExisting}). Remaining ${remainingAfterTakes} can still go to Head Office.`
                         : remainingAfterExisting > 0
@@ -1043,7 +1045,9 @@ export function RequestDetailPage() {
                 <p className="text-xs text-ink-secondary mt-1">
                   {isBelowCap
                     ? stockAvailable
-                      ? 'Below ₹5,000 and stock is available — Approve to close at PM and reserve stock for Store to issue.'
+                      ? showBranchTransfer
+                        ? 'Below ₹5,000 — this site can cover it. Approve to close at PM, or take from other projects instead.'
+                        : 'Below ₹5,000 and stock is available — Approve to close at PM and reserve stock for Store to issue.'
                       : showBranchTransfer
                         ? `Below ₹5,000 and this site is short. Take from other projects (currently ${totalTaking} of ${remainingAfterExisting}), then forward the remaining ${remainingAfterTakes} to Head Office if needed.`
                         : remainingAfterExisting > 0
@@ -1052,7 +1056,9 @@ export function RequestDetailPage() {
                     : stockAvailable
                       ? wouldExceedPmCap
                         ? `Your ₹${(pmDailyCap?.dailyCap ?? 5000).toLocaleString('en-IN')}/day approval cap is reached — this indent must go to Head Office.`
-                        : 'Stock is available at site (current remaining after prior PM approvals today) — Approve to close at PM and reserve allocation so Store can issue.'
+                        : showBranchTransfer
+                          ? 'Stock is available at this site — Approve to close at PM, or take from other projects instead.'
+                          : 'Stock is available at site (current remaining after prior PM approvals today) — Approve to close at PM and reserve allocation so Store can issue.'
                       : showBranchTransfer
                         ? `This site is short. Take qty from one or more assigned projects (currently ${totalTaking} of ${remainingAfterExisting}). Remaining ${remainingAfterTakes} can still go to Head Office.`
                         : remainingAfterExisting > 0
@@ -1115,7 +1121,7 @@ export function RequestDetailPage() {
               )}
               {showBranchTransfer && (
                 <Button
-                  variant="accent"
+                  variant={showPmApprove ? 'secondary' : 'accent'}
                   accentColor={accent}
                   disabled={
                     requestBranchTransfers.isPending ||

@@ -66,6 +66,10 @@ export function StockAcrossProjectsDropdown({
 
       {open && (
         <div className="px-4 pb-4 space-y-2 border-t border-surface-border pt-3">
+          <p className="text-[11px] text-ink-muted">
+            All materials on your other projects. Take qty for this indent is on the items above — not
+            this list.
+          </p>
           {isLoading ? (
             <p className="text-xs text-ink-muted">Loading stock across your projects…</p>
           ) : isError ? (
