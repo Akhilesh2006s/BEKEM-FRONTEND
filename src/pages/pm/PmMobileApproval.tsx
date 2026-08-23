@@ -13,6 +13,8 @@ import { ListQueryBoundary } from '@/components/ListQueryBoundary';
 import { StatusBadge } from '@/components/ui/StatusBadge';
 import { isInAllocationReview, isCurrentAllocationOwner } from '@/components/MaterialIndentsTable';
 import { otherProjectSitesWithStock } from '@/components/CrossProjectStockPanel';
+import { BranchTransferDecisionPopup } from '@/components/BranchTransferDecisionPopup';
+import { pmStockDecisionFromIndent } from '@/lib/pmBranchTransferDecision';
 
 export function PmMobileApprovalPage() {
   const { id } = useParams<{ id: string }>();
@@ -38,6 +40,10 @@ export function PmMobileApprovalPage() {
 
   const stockAvailable = Boolean(request?.canFullyIssue);
   const isBelowCap = request?.indentRequestType === 'BELOW_5000';
+  const pmStockDecision = request ? pmStockDecisionFromIndent(request) : null;
+  const currentProjectInsufficient = Boolean(
+    pmStockDecision?.currentProjectInsufficient ?? (request && !request.canFullyIssue)
+  );
   const otherStockAvailable = Boolean(
     request &&
       otherProjectSitesWithStock(request.crossProjectStock || [], request.projectId).length
@@ -46,7 +52,12 @@ export function PmMobileApprovalPage() {
     request &&
       ['FORWARDED_TO_PM', 'BRANCH_TRANSFER_REQUESTED'].includes(request.status) &&
       !request.escalatedToHo &&
-      otherStockAvailable
+      currentProjectInsufficient &&
+      otherStockAvailable &&
+      pmStockDecision?.branchTransferViable
+  );
+  const showStockDecisionFormula = Boolean(
+    request?.status === 'FORWARDED_TO_PM' && currentProjectInsufficient && pmStockDecision
   );
   const exceedsPmApprovalLevel = indentExceedsPmApprovalLevel(
     request?.estimatedValue,
@@ -247,14 +258,12 @@ export function PmMobileApprovalPage() {
                   </div>
                 ) : stockAvailable ? (
                   <div className="text-emerald-700 text-xs font-medium bg-emerald-50 rounded-lg px-3 py-2">
-                    {showBranchTransfer
-                      ? 'Stock available at this site — Approve to close, or request a branch transfer from other projects.'
-                      : 'Stock available — Approve to close at PM and reserve for issue'}
+                    Stock available — Approve to close at PM and reserve for issue
                   </div>
-                ) : showBranchTransfer ? (
+                ) : showStockDecisionFormula && pmStockDecision ? (
                   <div className="text-amber-800 text-xs font-medium bg-amber-50 rounded-lg px-3 py-2">
-                    This site is short, but other assigned projects have stock. Request a branch
-                    transfer, or forward remaining to Head Office.
+                    Stock short at this project — use the formula below before choosing Branch
+                    Transfer or Forward to HO.
                   </div>
                 ) : showForwardToHo ? (
                   <div className="text-amber-800 text-xs font-medium bg-amber-50 rounded-lg px-3 py-2">
@@ -265,6 +274,9 @@ export function PmMobileApprovalPage() {
             </div>
 
             <div className="grid grid-cols-1 gap-3">
+              {showStockDecisionFormula && pmStockDecision ? (
+                <BranchTransferDecisionPopup decision={pmStockDecision} />
+              ) : null}
               {showApprove && (
                 <Button
                   variant="accent"

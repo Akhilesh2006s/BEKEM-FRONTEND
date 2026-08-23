@@ -52,6 +52,10 @@ export function BranchTransferDetailPage() {
     queryClient.invalidateQueries({ queryKey: ['branch-transfer', id] });
     queryClient.invalidateQueries({ queryKey: ['branch-transfers'] });
     queryClient.invalidateQueries({ queryKey: ['pm-branch-transfer-requests'] });
+    queryClient.invalidateQueries({ queryKey: ['material-request'] });
+    queryClient.invalidateQueries({ queryKey: ['stock-inventory'] });
+    queryClient.invalidateQueries({ queryKey: ['stock-balance-live'] });
+    queryClient.invalidateQueries({ queryKey: ['pm-cross-stock-all'] });
   };
 
   const coordinatorDecide = useMutation({
@@ -100,7 +104,7 @@ export function BranchTransferDetailPage() {
   const executiveApprove = useMutation({
     mutationFn: () => api.post(`/branch-transfers/${id}/executive-approve`, { note }),
     onSuccess: () => {
-      setDoneMessage('Branch transfer approved — Coordinator will execute stock movement');
+      setDoneMessage('Branch transfer approved — stock updated at source and requesting projects');
       setDone(true);
     },
     onError: () => toast.error('Approval failed'),
@@ -186,8 +190,8 @@ export function BranchTransferDetailPage() {
           )}
           {role === UserRole.EXECUTIVE && transfer.status === 'REQUESTED' && (
             <p className="w-full basis-full text-xs text-ink-secondary rounded-lg bg-surface-muted px-3 py-2">
-              Review only — approve or reject as submitted. You cannot modify source, material, or
-              quantity.
+              Approve to move stock immediately: source project(s) deducted, requesting project
+              increased. Or reject the transfer.
             </p>
           )}
         </DetailFieldGrid>

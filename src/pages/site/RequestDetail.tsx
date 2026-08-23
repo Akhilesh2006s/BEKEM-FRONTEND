@@ -41,6 +41,8 @@ import {
   buildBatchSources,
 } from '@/components/CrossProjectStockPanel';
 import { StockAcrossProjectsDropdown } from '@/components/StockAcrossProjectsDropdown';
+import { BranchTransferDecisionPopup } from '@/components/BranchTransferDecisionPopup';
+import { pmStockDecisionFromIndent } from '@/lib/pmBranchTransferDecision';
 import { PmDailyCapBanner, CoordinatorDailyCapBanner } from '@/components/PmDailyCapBanner';
 import { useApprovalShortcuts } from '@/hooks/useApprovalShortcuts';
 import { DetailField, DetailFieldGrid } from '@/components/ui/DetailFields';
@@ -162,7 +164,12 @@ export function RequestDetailPage() {
         state != null
           ? ` · ₹${state.remaining.toLocaleString('en-IN')} left today`
           : '';
-      if (state?.decision === 'FORWARDED_STOCK') {
+      if (state?.decision === 'USE_BRANCH_TRANSFER') {
+        toast.message(
+          payload.message ||
+            'Combined stock can cover this indent — request a Branch Transfer or forward to HO'
+        );
+      } else if (state?.decision === 'FORWARDED_STOCK') {
         toast.message(
           payload.message ||
             `Insufficient current stock — forwarded to HO${stockBit}`
@@ -178,7 +185,12 @@ export function RequestDetailPage() {
       queryClient.invalidateQueries({ queryKey: ['pm-approvals'] });
       queryClient.invalidateQueries({ queryKey: ['pm-daily-cap'] });
     },
-    onError: (err: Error & { response?: { data?: { message?: string } } }) => {
+    onError: (err: Error & { response?: { data?: { message?: string; pmApprovalState?: PmApprovalStateDto } } }) => {
+      const state = err.response?.data?.pmApprovalState;
+      if (state?.decision === 'USE_BRANCH_TRANSFER' || err.response?.data?.message?.toLowerCase().includes('branch transfer')) {
+        toast.message(err.response?.data?.message || 'Request a Branch Transfer, or forward to HO');
+        return;
+      }
       toast.error(err.response?.data?.message || 'Could not approve');
     },
   });
@@ -279,8 +291,8 @@ export function RequestDetailPage() {
       const numbers = data.transfers.map((t) => t.transferNumber).join(', ');
       toast.success(
         data.transfers.length === 1
-          ? `Branch transfer ${numbers} sent to Head Office for approval`
-          : `${data.transfers.length} branch transfers sent to Head Office (${numbers})`
+          ? `Branch transfer ${numbers} sent to Executive for decision`
+          : `${data.transfers.length} branch transfers sent to Executive (${numbers})`
       );
       setPmRemark('');
       setTakeQtyByKey({});
@@ -384,8 +396,20 @@ export function RequestDetailPage() {
     request?.crossProjectStock || [],
     request?.projectId
   ).some((site) => !lockedSiteIds.includes(site.siteId));
+  const pmStockDecision = request ? pmStockDecisionFromIndent(request) : null;
+  const currentProjectInsufficient = Boolean(
+    pmStockDecision?.currentProjectInsufficient ?? (request && !request.canFullyIssue)
+  );
+  const combinedCoversIndent = Boolean(pmStockDecision?.branchTransferViable);
+  const showStockDecisionFormula = Boolean(
+    pmCanActOnIndent && currentProjectInsufficient && remainingAfterExisting > 0
+  );
   const showBranchTransfer = Boolean(
-    pmCanActOnIndent && otherStockAvailable && remainingAfterExisting > 0
+    pmCanActOnIndent &&
+      currentProjectInsufficient &&
+      otherStockAvailable &&
+      remainingAfterExisting > 0 &&
+      combinedCoversIndent
   );
   const exceedsPmApprovalLevel = indentExceedsPmApprovalLevel(
     request?.estimatedValue,
@@ -874,6 +898,7 @@ export function RequestDetailPage() {
       />
 
       {role === UserRole.PROJECT_MANAGER &&
+      currentProjectInsufficient &&
       request.crossProjectStock?.some((row) =>
         row.projects?.some((p) => p.projectId !== request.projectId)
       ) ? (
@@ -881,8 +906,8 @@ export function RequestDetailPage() {
           <h2 className="font-semibold text-gray-900 mb-3">Stock at other projects</h2>
           <p className="text-xs text-ink-secondary mb-3">
             {showBranchTransfer
-              ? 'Take qty is for this indent\u2019s items only. Enter how many to take from each site (up to available). You can take from more than one project. Any leftover still goes to Head Office.'
-              : 'Live stock of this indent\u2019s items on your other assigned projects — not this indent\u2019s project.'}
+              ? 'Current project stock is short. Enter take qty from other assigned projects. Combined stock can cover this indent — Executive will approve or reject the transfer.'
+              : 'Current project stock is short. Combined stock across your other projects cannot fulfill this indent — Forward to HO for Executive procurement.'}
           </p>
           <CrossProjectStockPanel
             rows={request.crossProjectStock}
@@ -907,7 +932,11 @@ export function RequestDetailPage() {
       ) : null}
 
       {role === UserRole.PROJECT_MANAGER && (
-        <StockAcrossProjectsDropdown excludeProjectId={request.projectId} className="mb-3" />
+        <StockAcrossProjectsDropdown
+          excludeProjectId={request.projectId}
+          highlightShortfall={currentProjectInsufficient}
+          className="mb-3"
+        />
       )}
 
       {role === UserRole.PROJECT_MANAGER && (request.linkedBranchTransfers?.length || 0) > 0 ? (
@@ -1102,6 +1131,9 @@ export function RequestDetailPage() {
             </div>
 
             <div className="flex flex-col justify-end gap-2">
+              {showStockDecisionFormula && pmStockDecision ? (
+                <BranchTransferDecisionPopup decision={pmStockDecision} />
+              ) : null}
               {showPmApprove && (
                 <Button
                   variant="accent"
@@ -1171,10 +1203,10 @@ export function RequestDetailPage() {
                   }}
                 >
                   {exceedsPmApprovalLevel
-                    ? 'Forward to HO for further approval'
+                    ? 'Forward to HO for Executive approval'
                     : remainingAfterExisting < totalRequested
-                      ? `Forward remaining ${remainingAfterTakes} to HO`
-                      : 'Forward to HO for Stock Procurement'}
+                      ? `Forward remaining ${remainingAfterTakes} to Executive`
+                      : 'Forward to HO for further approval'}
                 </Button>
               )}
               {totalTaking > 0 && remainingAfterTakes > 0 ? (

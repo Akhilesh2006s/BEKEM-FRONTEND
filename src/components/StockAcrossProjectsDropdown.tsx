@@ -23,11 +23,13 @@ interface ProjectStockSummary {
 interface StockAcrossProjectsDropdownProps {
   excludeProjectId?: string;
   className?: string;
+  highlightShortfall?: boolean;
 }
 
 export function StockAcrossProjectsDropdown({
   excludeProjectId,
   className,
+  highlightShortfall = false,
 }: StockAcrossProjectsDropdownProps) {
   const [open, setOpen] = useState(false);
   const [expandedProjectId, setExpandedProjectId] = useState<string | null>(null);
@@ -56,6 +58,11 @@ export function StockAcrossProjectsDropdown({
         <span className="flex items-center gap-2 text-sm font-semibold text-ink">
           <Layers className="h-4 w-4 text-ink-muted" />
           Stock Across Projects
+          {highlightShortfall ? (
+            <span className="text-[10px] font-medium uppercase tracking-wide text-amber-800 bg-amber-50 border border-amber-200 rounded-full px-2 py-0.5">
+              Shortfall
+            </span>
+          ) : null}
         </span>
         {open ? (
           <ChevronUp className="h-4 w-4 text-ink-muted" />
@@ -67,8 +74,9 @@ export function StockAcrossProjectsDropdown({
       {open && (
         <div className="px-4 pb-4 space-y-2 border-t border-surface-border pt-3">
           <p className="text-[11px] text-ink-muted">
-            All materials on your other projects. Take qty for this indent is on the items above — not
-            this list.
+            {highlightShortfall
+              ? 'Current project stock is short. Compare other projects, then use the formula below to choose Branch Transfer or Forward to HO.'
+              : 'All materials on your other projects. Take qty for this indent is on the items above — not this list.'}
           </p>
           {isLoading ? (
             <p className="text-xs text-ink-muted">Loading stock across your projects…</p>
