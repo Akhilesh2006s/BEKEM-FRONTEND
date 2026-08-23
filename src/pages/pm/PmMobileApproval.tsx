@@ -14,7 +14,7 @@ import { StatusBadge } from '@/components/ui/StatusBadge';
 import { isInAllocationReview, isCurrentAllocationOwner } from '@/components/MaterialIndentsTable';
 import { otherProjectSitesWithStock } from '@/components/CrossProjectStockPanel';
 import { BranchTransferDecisionPopup } from '@/components/BranchTransferDecisionPopup';
-import { pmStockDecisionFromIndent } from '@/lib/pmBranchTransferDecision';
+import { pmStockDecisionFromIndent, remainingNeedAfterCurrentAndTransfers } from '@/lib/pmBranchTransferDecision';
 
 export function PmMobileApprovalPage() {
   const { id } = useParams<{ id: string }>();
@@ -56,8 +56,12 @@ export function PmMobileApprovalPage() {
       otherStockAvailable &&
       pmStockDecision?.branchTransferViable
   );
+  const remainingShortfall = remainingNeedAfterCurrentAndTransfers(pmStockDecision);
   const showStockDecisionFormula = Boolean(
-    request?.status === 'FORWARDED_TO_PM' && currentProjectInsufficient && pmStockDecision
+    request?.status === 'FORWARDED_TO_PM' &&
+      currentProjectInsufficient &&
+      remainingShortfall > 0 &&
+      pmStockDecision
   );
   const exceedsPmApprovalLevel = indentExceedsPmApprovalLevel(
     request?.estimatedValue,
@@ -70,8 +74,10 @@ export function PmMobileApprovalPage() {
       pmDailyCap &&
       pmDailyCap.dailyApprovedTotal + (request?.estimatedValue || 0) > pmDailyCap.dailyCap
   );
+  /** Do not prompt HO when current project stock + existing/viable BT already covers need. */
   const showForwardToHo =
-    request?.status === 'FORWARDED_TO_PM' && (!stockAvailable || exceedsPmApprovalLevel);
+    request?.status === 'FORWARDED_TO_PM' &&
+    (exceedsPmApprovalLevel || (remainingShortfall > 0 && !stockAvailable));
   const showApprove =
     request?.status === 'FORWARDED_TO_PM' && stockAvailable && !exceedsPmApprovalLevel;
   const showProceedAllocation = Boolean(

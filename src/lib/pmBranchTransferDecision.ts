@@ -59,6 +59,33 @@ export function evaluatePmBranchTransferDecision(
   };
 }
 
+const CLOSED_BT_STATUSES = new Set(['REJECTED', 'RAISE_PO_INSTEAD']);
+
+function alreadyCoveredByMaterialFromIndent(
+  request: MaterialRequestDto
+): Record<string, number> {
+  const map: Record<string, number> = {};
+  for (const t of request.linkedBranchTransfers || []) {
+    if (CLOSED_BT_STATUSES.has(t.status)) continue;
+    for (const item of t.items || []) {
+      const mid = item.materialId || '';
+      if (!mid) continue;
+      map[mid] = (map[mid] || 0) + Number(item.quantity || 0);
+    }
+  }
+  return map;
+}
+
+/** Qty still needed from other projects after current site stock + existing BTs. */
+export function remainingNeedAfterCurrentAndTransfers(
+  decision: PmStockDecisionDto | null | undefined
+): number {
+  return (decision?.lines || []).reduce(
+    (sum, line) => sum + Math.max(0, Number(line.shortfallAfterCurrent || 0)),
+    0
+  );
+}
+
 export function pmStockDecisionFromIndent(request: MaterialRequestDto): PmStockDecisionDto | null {
   if (request.pmStockDecision) return request.pmStockDecision;
 
@@ -77,6 +104,7 @@ export function pmStockDecisionFromIndent(request: MaterialRequestDto): PmStockD
   if (!items.length) return null;
 
   const otherByMaterial = otherQtyByMaterial(request.crossProjectStock);
+  const alreadyCovered = alreadyCoveredByMaterialFromIndent(request);
   return evaluatePmBranchTransferDecision(
     items.map((item) => {
       const materialId = item.materialId || '';
@@ -87,6 +115,7 @@ export function pmStockDecisionFromIndent(request: MaterialRequestDto): PmStockD
         requiredQty: item.quantityRequested ?? item.requestedQty ?? 0,
         currentProjectAvailableQty: item.availableQty ?? 0,
         otherProjectsAvailableQty: otherByMaterial.get(materialId) || 0,
+        alreadyCoveredQty: alreadyCovered[materialId] || 0,
       };
     })
   );

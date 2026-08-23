@@ -42,7 +42,7 @@ import {
 } from '@/components/CrossProjectStockPanel';
 import { StockAcrossProjectsDropdown } from '@/components/StockAcrossProjectsDropdown';
 import { BranchTransferDecisionPopup } from '@/components/BranchTransferDecisionPopup';
-import { pmStockDecisionFromIndent } from '@/lib/pmBranchTransferDecision';
+import { pmStockDecisionFromIndent, remainingNeedAfterCurrentAndTransfers } from '@/lib/pmBranchTransferDecision';
 import { PmDailyCapBanner, CoordinatorDailyCapBanner } from '@/components/PmDailyCapBanner';
 import { useApprovalShortcuts } from '@/hooks/useApprovalShortcuts';
 import { DetailField, DetailFieldGrid } from '@/components/ui/DetailFields';
@@ -384,11 +384,23 @@ export function RequestDetailPage() {
       materialId
     );
   }
+  const currentAvailableByMaterial: Record<string, number> = {};
+  for (const item of request?.items || []) {
+    if (!item.materialId) continue;
+    currentAvailableByMaterial[item.materialId] = Math.max(
+      0,
+      Number(item.availableQty || 0)
+    );
+  }
+  if (
+    request?.materialId &&
+    !request?.items?.length &&
+    currentAvailableByMaterial[request.materialId] == null
+  ) {
+    currentAvailableByMaterial[request.materialId] = 0;
+  }
   const totalRequested = Object.values(requestedByMaterial).reduce((sum, qty) => sum + qty, 0);
-  const totalAlready = Object.values(alreadyCoveredByMaterial).reduce((sum, qty) => sum + qty, 0);
   const totalTaking = Object.values(takeQtyByKey).reduce((sum, qty) => sum + (Number(qty) || 0), 0);
-  const remainingAfterExisting = Math.max(0, totalRequested - totalAlready);
-  const remainingAfterTakes = Math.max(0, remainingAfterExisting - totalTaking);
   const lockedSiteIds = (request?.linkedBranchTransfers || [])
     .filter((t) => !CLOSED_INDENT_BT.includes(t.status) && t.fromSiteId)
     .map((t) => t.fromSiteId as string);
@@ -397,6 +409,10 @@ export function RequestDetailPage() {
     request?.projectId
   ).some((site) => !lockedSiteIds.includes(site.siteId));
   const pmStockDecision = request ? pmStockDecisionFromIndent(request) : null;
+  /** Remaining after (current project stock + existing BTs) — not BT-only. */
+  const remainingAfterExisting = remainingNeedAfterCurrentAndTransfers(pmStockDecision);
+  const remainingAfterTakes = Math.max(0, remainingAfterExisting - totalTaking);
+  const coveredTowardRequired = Math.max(0, totalRequested - remainingAfterTakes);
   const currentProjectInsufficient = Boolean(
     pmStockDecision?.currentProjectInsufficient ?? (request && !request.canFullyIssue)
   );
@@ -415,7 +431,7 @@ export function RequestDetailPage() {
     request?.estimatedValue,
     request?.indentRequestType
   );
-  /** Remaining shortfall after takes / existing BTs still goes to Head Office.
+  /** Remaining shortfall after current stock + takes / existing BTs still goes to Head Office.
    *  Indents above the PM per-indent approval limit also go to HO even when stock is available. */
   const showForwardToHo = Boolean(
     pmCanActOnIndent &&
@@ -925,6 +941,7 @@ export function RequestDetailPage() {
             }
             requestedByMaterial={requestedByMaterial}
             alreadyCoveredByMaterial={alreadyCoveredByMaterial}
+            currentAvailableByMaterial={currentAvailableByMaterial}
             lockedSiteIds={lockedSiteIds}
             className="mb-3"
           />
@@ -1066,7 +1083,7 @@ export function RequestDetailPage() {
                       : showBranchTransfer
                         ? `This site is short. Take qty from one or more assigned projects (currently ${totalTaking} of ${remainingAfterExisting}). Remaining ${remainingAfterTakes} can still go to Head Office.`
                         : remainingAfterExisting > 0
-                          ? `${remainingAfterExisting} still needed after branch transfers.`
+                          ? `${remainingAfterExisting} still needed after current stock and branch transfers.`
                           : 'Stock is short at site.'}
                   </p>
                 </>
@@ -1091,16 +1108,16 @@ export function RequestDetailPage() {
                       : showBranchTransfer
                         ? `This site is short. Take qty from one or more assigned projects (currently ${totalTaking} of ${remainingAfterExisting}). Remaining ${remainingAfterTakes} can still go to Head Office.`
                         : remainingAfterExisting > 0
-                          ? `${remainingAfterExisting} still needed after branch transfers. Forward remaining to Head Office for stock requisition.`
+                          ? `${remainingAfterExisting} still needed after current stock and branch transfers. Forward remaining to Head Office for stock requisition.`
                           : 'Stock is short at site. Forward to Head Office for stock requisition / procurement.'}
                 </p>
               )}
               {showBranchTransfer && totalRequested > 0 ? (
                 <p className="mt-2 text-xs font-medium tabular-nums text-ink">
-                  Taking {totalAlready + totalTaking} of {totalRequested}
+                  Current stock + transfers covering {coveredTowardRequired} of {totalRequested}
                   {remainingAfterTakes > 0
                     ? ` · Remaining ${remainingAfterTakes} for HO`
-                    : ' · Fully covered by transfers'}
+                    : ' · Fully covered (current stock + branch transfer)'}
                 </p>
               ) : null}
 

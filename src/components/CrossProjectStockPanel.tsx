@@ -114,6 +114,8 @@ interface CrossProjectStockPanelProps {
   onChangeTake?: (materialId: string, source: CrossProjectSource, qty: number) => void;
   requestedByMaterial?: Record<string, number>;
   alreadyCoveredByMaterial?: Record<string, number>;
+  /** Current requesting-project available qty by material (used in combined fulfillment). */
+  currentAvailableByMaterial?: Record<string, number>;
   lockedSiteIds?: string[];
 }
 
@@ -125,6 +127,7 @@ export function CrossProjectStockPanel({
   onChangeTake,
   requestedByMaterial = {},
   alreadyCoveredByMaterial = {},
+  currentAvailableByMaterial = {},
   lockedSiteIds = [],
 }: CrossProjectStockPanelProps) {
   const takeMode = Boolean(onChangeTake);
@@ -145,16 +148,22 @@ export function CrossProjectStockPanel({
       {visibleRows.map((row) => {
         const requested = requestedByMaterial[row.materialId] ?? 0;
         const already = alreadyCoveredByMaterial[row.materialId] ?? 0;
+        const currentAvail = Math.max(0, Number(currentAvailableByMaterial[row.materialId] || 0));
+        /** Need from other projects after current site stock + existing BTs. */
+        const needFromOther = Math.max(0, requested - currentAvail - already);
         const taking = takenForMaterial(takeQtyByKey, row.materialId);
-        const remaining = Math.max(0, requested - already - taking);
+        const remaining = Math.max(0, needFromOther - taking);
+        const coveredTowardRequired = Math.min(requested, currentAvail + already + taking);
         return (
           <Card key={row.materialId} className="p-4 space-y-3">
             <div className="flex flex-wrap items-start justify-between gap-2">
               <p className="font-semibold text-ink">{row.materialName || 'Material'}</p>
               {takeMode && requested > 0 ? (
                 <p className="text-xs text-ink-secondary tabular-nums">
-                  Taking {already + taking} of {requested}
-                  {remaining > 0 ? ` · Remaining ${remaining}` : ' · Fully covered'}
+                  Current + transfers {coveredTowardRequired} of {requested}
+                  {remaining > 0
+                    ? ` · Still need ${remaining} from other projects`
+                    : ' · Fully covered'}
                 </p>
               ) : null}
             </div>
@@ -201,7 +210,7 @@ export function CrossProjectStockPanel({
                             0,
                             Math.min(
                               site.availableQty,
-                              Math.max(0, requested - already - othersTaken)
+                              Math.max(0, needFromOther - othersTaken)
                             )
                           );
                           const current =
