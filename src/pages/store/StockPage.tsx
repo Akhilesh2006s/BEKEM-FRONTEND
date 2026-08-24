@@ -271,6 +271,7 @@ export function StockPage() {
           itemCode: string;
           itemDescription: string;
           unit: string;
+          openingBalance?: number;
           totalReceived: number;
           totalIssued: number;
           currentBalance: number;
@@ -435,22 +436,34 @@ export function StockPage() {
                   <th>Item code</th>
                   <th>Description</th>
                   <th>Unit</th>
+                  <th className="num">Opening</th>
                   <th className="num">Received</th>
                   <th className="num">Issued</th>
                   <th className="num">Current balance</th>
                 </tr>
               </thead>
               <tbody>
-                {liveRows.map((row) => (
+                {liveRows.map((row) => {
+                  const opening =
+                    row.openingBalance ??
+                    Math.round(
+                      (Number(row.currentBalance || 0) -
+                        Number(row.totalReceived || 0) +
+                        Number(row.totalIssued || 0)) *
+                        1000
+                    ) / 1000;
+                  return (
                   <tr key={row.id}>
                     <td className="cell-code whitespace-nowrap">{row.itemCode || '—'}</td>
                     <td className="cell-text">{row.itemDescription || '—'}</td>
                     <td className="whitespace-nowrap">{row.unit || '—'}</td>
+                    <td className="num tabular-nums">{fmtNum(opening) || '—'}</td>
                     <td className="num tabular-nums">{fmtNum(row.totalReceived) || '—'}</td>
                     <td className="num tabular-nums">{fmtNum(row.totalIssued) || '—'}</td>
                     <td className="num tabular-nums font-semibold">{fmtNum(row.currentBalance) || '—'}</td>
                   </tr>
-                ))}
+                  );
+                })}
               </tbody>
             </table>
           </div>

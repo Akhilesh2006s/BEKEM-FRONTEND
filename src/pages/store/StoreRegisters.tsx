@@ -104,6 +104,7 @@ interface BalanceRow {
   itemCode: string;
   itemDescription: string;
   unit: string;
+  openingBalance?: number;
   totalReceived: number;
   totalIssued: number;
   currentBalance: number;
@@ -261,7 +262,7 @@ export function StoreRegistersPage() {
     <div className="page-container max-w-full">
       <PageHeader
         title="Material registers"
-        subtitle="Inward (GRNs) · Outward (Issues) · Stock = Inward − Outward"
+        subtitle="Opening + Inward (GRNs) − Outward (Issues) = Current balance"
       />
 
       <div className="flex gap-1 bg-surface-muted rounded-lg p-1 mb-4 w-full sm:w-fit overflow-x-auto">
@@ -410,22 +411,34 @@ export function StoreRegistersPage() {
                   <th>Item Code</th>
                   <th>Item Description</th>
                   <th>Unit</th>
+                  <th className="num">Opening</th>
                   <th className="num">Total Received</th>
                   <th className="num">Total Issued</th>
                   <th className="num">Current Balance</th>
                 </tr>
               </thead>
               <tbody>
-                {(stock.data ?? []).map((row) => (
+                {(stock.data ?? []).map((row) => {
+                  const opening =
+                    row.openingBalance ??
+                    Math.round(
+                      (Number(row.currentBalance || 0) -
+                        Number(row.totalReceived || 0) +
+                        Number(row.totalIssued || 0)) *
+                        1000
+                    ) / 1000;
+                  return (
                   <tr key={row.id}>
                     <td className="cell-code">{row.itemCode}</td>
                     <td className="cell-text">{row.itemDescription}</td>
                     <td>{row.unit || '—'}</td>
+                    <td className="num tabular-nums">{opening}</td>
                     <td className="num tabular-nums">{row.totalReceived}</td>
                     <td className="num tabular-nums">{row.totalIssued}</td>
                     <td className="num tabular-nums font-semibold">{row.currentBalance}</td>
                   </tr>
-                ))}
+                  );
+                })}
               </tbody>
             </table>
           </div>
