@@ -25,7 +25,9 @@ type IssueLineSource = {
   materialId: string;
   quantityRequested: number;
   quantityAllocated?: number;
+  quantityIssued?: number;
   availableQty?: number;
+  availableToIssueQty?: number;
   unit?: string;
   material?: MaterialRequestDto['material'];
 };
@@ -37,7 +39,9 @@ function lineItems(mr: MaterialRequestDto): IssueLineSource[] {
       materialId: item.materialId,
       quantityRequested: item.quantityRequested,
       quantityAllocated: item.quantityAllocated,
+      quantityIssued: item.quantityIssued,
       availableQty: item.availableQty,
+      availableToIssueQty: item.availableToIssueQty,
       unit: item.unit,
       material: item.material,
     }));
@@ -48,6 +52,7 @@ function lineItems(mr: MaterialRequestDto): IssueLineSource[] {
         id: mr.id,
         materialId: mr.materialId || mr.material?.id || '',
         quantityRequested: mr.quantityRequested || 0,
+        quantityIssued: mr.quantityIssued || 0,
         availableQty: undefined,
         material: mr.material,
       },
@@ -349,39 +354,52 @@ export function IssueMaterialPage() {
                   <tr>
                     <th>Item Code</th>
                     <th>Item Description</th>
-                    <th className="num">Available Quantity</th>
-                    <th className="num">Issued Quantity</th>
-                    <th className="num">Balance Quantity</th>
+                    <th className="num">Requested</th>
+                    <th className="num">Already issued</th>
+                    <th className="num">Remaining to issue</th>
+                    <th className="num">Issue now</th>
+                    <th className="num">Balance after</th>
                     <th>Unit</th>
                   </tr>
                 </thead>
                 <tbody>
-                  {issueLines.map((row) => (
-                    <tr key={row.key}>
-                      <td className="cell-code whitespace-nowrap">{row.itemCode}</td>
-                      <td className="cell-text">{row.description}</td>
-                      <td className="num tabular-nums">{row.available}</td>
-                      <td className="num">
-                        <Input
-                          type="number"
-                          min={0}
-                          max={row.available}
-                          step="any"
-                          value={row.issued}
-                          onChange={(e) => {
-                            const v = Math.max(0, Number(e.target.value) || 0);
-                            setIssuedQtyByLine((prev) => ({
-                              ...prev,
-                              [row.key]: Math.min(v, row.available),
-                            }));
-                          }}
-                          className="w-24 text-right"
-                        />
-                      </td>
-                      <td className="num tabular-nums">{row.balance}</td>
-                      <td className="whitespace-nowrap">{row.unit || '—'}</td>
-                    </tr>
-                  ))}
+                  {issueLines.map((line) => {
+                    const source = lineItems(selected).find(
+                      (i) => (i.id || i.materialId) === line.key
+                    );
+                    const alreadyIssued = Number(source?.quantityIssued || 0);
+                    const requested = Number(source?.quantityRequested || 0);
+                    return (
+                      <tr key={line.key}>
+                        <td className="cell-code whitespace-nowrap">{line.itemCode}</td>
+                        <td className="cell-text">{line.description}</td>
+                        <td className="num tabular-nums">{requested}</td>
+                        <td className="num tabular-nums">{alreadyIssued}</td>
+                        <td className="num tabular-nums font-semibold text-emerald-700">
+                          {line.available}
+                        </td>
+                        <td className="num">
+                          <Input
+                            type="number"
+                            min={0}
+                            max={line.available}
+                            step="any"
+                            className="w-24 ml-auto text-right"
+                            value={line.issued}
+                            onChange={(e) => {
+                              const raw = Number(e.target.value);
+                              const nextQty = Number.isFinite(raw)
+                                ? Math.min(line.available, Math.max(0, raw))
+                                : 0;
+                              setIssuedQtyByLine((prev) => ({ ...prev, [line.key]: nextQty }));
+                            }}
+                          />
+                        </td>
+                        <td className="num tabular-nums">{line.balance}</td>
+                        <td>{line.unit || '—'}</td>
+                      </tr>
+                    );
+                  })}
                 </tbody>
               </table>
             </div>

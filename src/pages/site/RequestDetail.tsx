@@ -807,6 +807,7 @@ export function RequestDetailPage() {
                 <th className="num">Requested</th>
                 <th className="num">GRN received</th>
                 <th className="num">Issued</th>
+                <th className="num">Remaining</th>
                 {showAvailableToIssue && (
                   <th className="num">Available to issue</th>
                 )}
@@ -830,6 +831,11 @@ export function RequestDetailPage() {
                   <td className="num tabular-nums">
                     {item.quantityIssued ?? 0} {item.unit || item.material?.unit || ''}
                   </td>
+                  <td className="num tabular-nums font-semibold">
+                    {item.remainingToIssueQty ??
+                      Math.max(0, Number(item.quantityRequested || 0) - Number(item.quantityIssued || 0))}{' '}
+                    {item.unit || item.material?.unit || ''}
+                  </td>
                   {showAvailableToIssue && (
                     <td
                       className={`num tabular-nums font-semibold ${
@@ -849,6 +855,51 @@ export function RequestDetailPage() {
             </tbody>
           </table>
         </div>
+      </Card>
+
+      <Card className="mb-3 overflow-hidden p-0">
+        <div className="px-4 py-3 border-b border-surface-border">
+          <h2 className="font-semibold text-gray-900">Issues to site</h2>
+          <p className="text-xs text-ink-secondary mt-1">
+            Each issue slip against this indent (partial issues listed separately).
+          </p>
+        </div>
+        {request.issues?.length ? (
+          <div className="divide-y divide-surface-border">
+            {request.issues.map((issue) => (
+              <div key={issue.id} className="p-4 space-y-3">
+                <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+                  <DetailField label="Issue slip">{issue.issueNumber}</DetailField>
+                  <DetailField label="Issued on">
+                    {issue.issuedAt ? formatDate(issue.issuedAt) : '—'}
+                  </DetailField>
+                  <DetailField label="Issued to">{issue.issuedToName || '—'}</DetailField>
+                  <DetailField label="Issued by">{issue.issuedByName || '—'}</DetailField>
+                </div>
+                <div>
+                  <p className="text-xs font-medium text-gray-500 mb-1">Materials issued</p>
+                  <div className="rounded-lg border border-surface-border divide-y divide-surface-border">
+                    {issue.items.map((item) => (
+                      <div
+                        key={`${issue.id}-${item.materialId}`}
+                        className="flex items-center justify-between gap-3 px-3 py-2 text-sm"
+                      >
+                        <span className="text-gray-900">{item.materialName}</span>
+                        <span className="font-medium tabular-nums">
+                          {formatQuantity(item.quantityIssued, item.unit)}
+                        </span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              </div>
+            ))}
+          </div>
+        ) : (
+          <p className="px-4 py-5 text-sm text-ink-muted">
+            No material has been issued against this indent yet.
+          </p>
+        )}
       </Card>
 
       <Card className="mb-3 overflow-hidden p-0">

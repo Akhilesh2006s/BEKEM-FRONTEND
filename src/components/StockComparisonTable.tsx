@@ -10,10 +10,8 @@ interface StockComparisonTableProps {
   showPricing?: boolean;
   /** Show GRN/issue fulfillment quantities instead of the legacy allocated column. */
   showFulfillment?: boolean;
-  /** Hide live store stock in fulfillment tables (e.g. Indent raiser). */
+  /** Hide store-only "Available to issue" (e.g. Indent raiser). */
   showAvailableToIssue?: boolean;
-  /** Show live store stock beside requested qty (allocate / review flows). */
-  showAvailableStock?: boolean;
   /** Server-computed total (sum of line totals). Falls back to item sum. */
   totalEstimatedValue?: number | null;
 }
@@ -25,6 +23,9 @@ function lineItems(items: IndentLineItemDto[]) {
     const allocatedQty = item.quantityAllocated ?? 0;
     const receivedQty = item.quantityReceived ?? 0;
     const issuedQty = item.quantityIssued ?? 0;
+    const availableToIssueQty = item.availableToIssueQty ?? 0;
+    const remainingToIssueQty =
+      item.remainingToIssueQty ?? Math.max(0, requestedQty - issuedQty);
     const pendingReceiptQty = item.pendingReceiptQty ?? Math.max(0, requestedQty - receivedQty);
     const unitPrice = item.unitPrice ?? null;
     const lineTotal =
@@ -35,10 +36,11 @@ function lineItems(items: IndentLineItemDto[]) {
       name: item.material?.name || 'Material',
       unit: item.unit || item.material?.unit || '',
       requestedQty,
-      availableQty,
       allocatedQty,
       receivedQty,
       issuedQty,
+      remainingToIssueQty,
+      availableToIssueQty,
       pendingReceiptQty,
       requiredQty: computeRequiredQty(requestedQty, availableQty),
       unitPrice,
@@ -54,7 +56,6 @@ export function StockComparisonTable({
   showPricing = false,
   showFulfillment = false,
   showAvailableToIssue = true,
-  showAvailableStock = true,
   totalEstimatedValue,
 }: StockComparisonTableProps) {
   const rows = lineItems(items);
@@ -63,8 +64,8 @@ export function StockComparisonTable({
   const hasShortfall = rows.some((row) => row.requiredQty > 0);
   const hasPricing = showPricing || rows.some((row) => row.unitPrice != null);
   const fulfillmentCols = showFulfillment
-    ? 3 + (showAvailableToIssue ? 1 : 0)
-    : 1 + (showAvailableStock ? 1 : 0);
+    ? 4 + (showAvailableToIssue ? 1 : 0)
+    : 1;
   const computedTotal =
     totalEstimatedValue ??
     (hasPricing
@@ -100,16 +101,14 @@ export function StockComparisonTable({
                 <>
                   <th className="num w-20">GRN received</th>
                   <th className="num w-20">Issued</th>
+                  <th className="num w-20">Remaining</th>
                   {showAvailableToIssue && (
                     <th className="num w-24">Available to issue</th>
                   )}
                   <th className="num w-24">Pending receipt</th>
                 </>
               ) : (
-                <>
-                  {showAvailableStock && <th className="num w-24">Available</th>}
-                  <th className="num w-20">Allocated</th>
-                </>
+                <th className="num w-20">Allocated</th>
               )}
               {hasPricing && (
                 <>
@@ -131,36 +130,18 @@ export function StockComparisonTable({
                   <>
                     <td className="num">{formatQuantity(row.receivedQty, row.unit)}</td>
                     <td className="num">{formatQuantity(row.issuedQty, row.unit)}</td>
+                    <td className="num font-semibold">
+                      {formatQuantity(row.remainingToIssueQty, row.unit)}
+                    </td>
                     {showAvailableToIssue && (
-                      <td
-                        className={cn(
-                          'num font-medium',
-                          row.availableQty >= row.requestedQty
-                            ? 'text-emerald-700'
-                            : 'text-warning-dark'
-                        )}
-                      >
-                        {formatQuantity(row.availableQty, row.unit)}
+                      <td className="num font-medium text-emerald-700">
+                        {formatQuantity(row.availableToIssueQty, row.unit)}
                       </td>
                     )}
                     <td className="num">{formatQuantity(row.pendingReceiptQty, row.unit)}</td>
                   </>
                 ) : (
-                  <>
-                    {showAvailableStock && (
-                      <td
-                        className={cn(
-                          'num font-medium',
-                          row.availableQty >= row.requestedQty
-                            ? 'text-emerald-700'
-                            : 'text-warning-dark'
-                        )}
-                      >
-                        {formatQuantity(row.availableQty, row.unit)}
-                      </td>
-                    )}
-                    <td className="num">{formatQuantity(row.allocatedQty, row.unit)}</td>
-                  </>
+                  <td className="num">{formatQuantity(row.allocatedQty, row.unit)}</td>
                 )}
                 {hasPricing && (
                   <>
