@@ -46,7 +46,7 @@ import { pmStockDecisionFromIndent, remainingNeedAfterCurrentAndTransfers } from
 import { PmDailyCapBanner, CoordinatorDailyCapBanner } from '@/components/PmDailyCapBanner';
 import { useApprovalShortcuts } from '@/hooks/useApprovalShortcuts';
 import { DetailField, DetailFieldGrid } from '@/components/ui/DetailFields';
-import { formatIndentQueueStatus, isInAllocationReview, isCurrentAllocationOwner, resolveAllocationReviewStage } from '@/components/MaterialIndentsTable';
+import { formatIndentQueueStatus, formatIssuedFulfillmentLabel, isIndentFullyIssued, isInAllocationReview, isCurrentAllocationOwner, resolveAllocationReviewStage } from '@/components/MaterialIndentsTable';
 import { QuantityStepper } from '@/components/QuantityStepper';
 import { newIdempotencyKey, idempotencyHeaders } from '@/lib/idempotency';
 
@@ -573,16 +573,24 @@ export function RequestDetailPage() {
             </button>
           </div>
           <StatusBadge
-            status={request.status}
-            label={formatIndentQueueStatus(
-              request.status,
-              request.pendingWith,
-              request.approverNames,
-              request.poStatus,
-              request.pmProceededAllocation,
-              request.allocationReviewStage,
-              request.allocatedByRole
-            )}
+            status={
+              request.status === 'ISSUED' && !isIndentFullyIssued(request)
+                ? 'PARTIALLY_ISSUED'
+                : request.status
+            }
+            label={
+              request.status === 'ISSUED'
+                ? formatIssuedFulfillmentLabel(request)
+                : formatIndentQueueStatus(
+                    request.status,
+                    request.pendingWith,
+                    request.approverNames,
+                    request.poStatus,
+                    request.pmProceededAllocation,
+                    request.allocationReviewStage,
+                    request.allocatedByRole
+                  )
+            }
             className="mt-1"
           />
         </div>

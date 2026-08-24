@@ -19,6 +19,11 @@ import { useListQuery, normalizeListData } from '@/hooks/useListQuery';
 import { StatusBadge } from '@/components/ui/StatusBadge';
 import { downloadExport } from '@/lib/downloadExport';
 import { ChevronRight } from 'lucide-react';
+import {
+  formatIndentQueueStatus,
+  formatIssuedFulfillmentLabel,
+  isIndentFullyIssued,
+} from '@/components/MaterialIndentsTable';
 
 type IssueLineSource = {
   id: string;
@@ -316,7 +321,22 @@ export function IssueMaterialPage() {
                     </td>
                     <td className="whitespace-nowrap">{formatDate(mr.createdAt)}</td>
                     <td>
-                      <StatusBadge status={mr.status} />
+                      <StatusBadge
+                        status={mr.status === 'ISSUED' && !isIndentFullyIssued(mr) ? 'PARTIALLY_ISSUED' : mr.status}
+                        label={
+                          mr.status === 'ISSUED'
+                            ? formatIssuedFulfillmentLabel(mr)
+                            : formatIndentQueueStatus(
+                                mr.status,
+                                mr.pendingWith,
+                                mr.approverNames,
+                                mr.poStatus,
+                                mr.pmProceededAllocation,
+                                mr.allocationReviewStage,
+                                mr.allocatedByRole
+                              )
+                        }
+                      />
                     </td>
                     <td className="text-right">
                       <ChevronRight className="h-4 w-4 text-ink-muted inline-block" />

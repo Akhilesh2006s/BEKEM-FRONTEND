@@ -64,6 +64,30 @@ export function isCurrentAllocationOwner(
   return Boolean(role) && resolveAllocationReviewStage(request) === role;
 }
 
+/** True when every line has issued qty covering the requested qty. */
+export function isIndentFullyIssued(request: MaterialRequestDto): boolean {
+  const items =
+    request.items?.length
+      ? request.items
+      : request.materialId || request.quantityRequested != null
+        ? [
+            {
+              quantityRequested: request.quantityRequested || 0,
+              quantityIssued: request.quantityIssued || 0,
+            },
+          ]
+        : [];
+  if (!items.length) return false;
+  return items.every(
+    (item) => Number(item.quantityIssued || 0) >= Number(item.quantityRequested || 0)
+  );
+}
+
+/** Label for store issue queue / indent header when status is ISSUED. */
+export function formatIssuedFulfillmentLabel(request: MaterialRequestDto): string {
+  return isIndentFullyIssued(request) ? 'Issued to site' : 'Partially issued';
+}
+
 /** Show awaiting first, then latest approver until the next approver acts. */
 export function formatIndentQueueStatus(
   status: string,
@@ -209,11 +233,7 @@ function toIndentRows(
     status: r.status,
     statusLabel:
       r.status === 'ISSUED'
-        ? (r.items || []).every(
-            (item) => Number(item.quantityIssued || 0) >= Number(item.quantityRequested || 0)
-          )
-          ? 'Issued to site'
-          : 'Partially issued to site'
+        ? formatIssuedFulfillmentLabel(r)
         : formatIndentQueueStatus(
             r.status,
             r.pendingWith,
