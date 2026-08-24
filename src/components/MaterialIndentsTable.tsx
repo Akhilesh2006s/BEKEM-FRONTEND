@@ -253,9 +253,8 @@ function toIndentRows(
       const received = Number(item.quantityReceived || 0);
       const issued = Number(item.quantityIssued || 0);
       const available = Number(item.availableToIssueQty || 0);
-      const pending = Number(item.pendingReceiptQty ?? Math.max(0, item.quantityRequested - received));
-      const allocatedBalance = Math.max(0, Number(item.quantityAllocated || 0) - issued);
-      const readyToIssue = Math.max(available, allocatedBalance);
+      const pending = Number(item.pendingReceiptQty ?? 0);
+      const readyToIssue = available;
       const receiptDates = [
         ...new Set(
           (item.receipts || [])

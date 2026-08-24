@@ -26,7 +26,9 @@ function lineItems(items: IndentLineItemDto[]) {
     const availableToIssueQty = item.availableToIssueQty ?? 0;
     const remainingToIssueQty =
       item.remainingToIssueQty ?? Math.max(0, requestedQty - issuedQty);
-    const pendingReceiptQty = item.pendingReceiptQty ?? Math.max(0, requestedQty - receivedQty);
+    const pendingReceiptQty =
+      item.pendingReceiptQty ??
+      Math.max(0, remainingToIssueQty - Math.min(availableQty, remainingToIssueQty));
     const unitPrice = item.unitPrice ?? null;
     const lineTotal =
       item.lineTotal ??
