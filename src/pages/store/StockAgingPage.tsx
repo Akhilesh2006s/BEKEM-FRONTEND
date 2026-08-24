@@ -125,7 +125,7 @@ export function StockAgingPage() {
     <div className="page-container max-w-full">
       <PageHeader
         title="Stock aging report"
-        subtitle="Grouped by product · FIFO batches under each item (Current Date − GRN Receipt Date)"
+        subtitle="FIFO GRN batches plus Opening / non-FIFO remainder so totals match live stock"
       />
 
       <ListQueryBoundary

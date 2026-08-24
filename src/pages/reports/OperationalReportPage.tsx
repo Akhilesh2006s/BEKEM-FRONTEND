@@ -58,7 +58,7 @@ const REPORT_CONFIG: Record<
   'grn-register': {
     api: '/reports/grn-register',
     title: 'GRN register',
-    subtitle: 'Inbound receipts with invoice and quantity balance',
+    subtitle: 'This GRN qty is this receipt only. Ordered / PO received / Left are cumulative on the PO.',
     filename: 'grn-register',
     columns: [
       { key: 'grnNumber', label: 'GRN' },
@@ -68,9 +68,9 @@ const REPORT_CONFIG: Record<
       { key: 'invoiceNo', label: 'Invoice' },
       { key: 'invoiceValue', label: 'Invoice value', format: 'currency' },
       { key: 'quantityThisGrn', label: 'This GRN' },
-      { key: 'quantityOrdered', label: 'Ordered' },
-      { key: 'quantityReceived', label: 'Received' },
-      { key: 'quantityRemaining', label: 'Left' },
+      { key: 'quantityOrdered', label: 'PO ordered' },
+      { key: 'quantityReceived', label: 'PO received (cum.)' },
+      { key: 'quantityRemaining', label: 'PO remaining' },
       { key: 'status', label: 'Status', format: 'status' },
       { key: 'receivedAt', label: 'Received on', format: 'date' },
     ],
@@ -314,7 +314,7 @@ const REPORT_CONFIG: Record<
   'stock-movement': {
     api: '/reports/stock-movement',
     title: 'Stock movement ledger',
-    subtitle: 'GRN inward and issue outward',
+    subtitle: 'Live stock movements: GRN/transfer inward, issues, and adjustments',
     filename: 'stock-movement',
     columns: [
       { key: 'movedAt', label: 'When', format: 'date' },

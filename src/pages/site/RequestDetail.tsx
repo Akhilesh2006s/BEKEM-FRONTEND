@@ -574,12 +574,13 @@ export function RequestDetailPage() {
           </div>
           <StatusBadge
             status={
-              request.status === 'ISSUED' && !isIndentFullyIssued(request)
+              request.status === 'PARTIALLY_ISSUED' ||
+              (request.status === 'ISSUED' && !isIndentFullyIssued(request))
                 ? 'PARTIALLY_ISSUED'
                 : request.status
             }
             label={
-              request.status === 'ISSUED'
+              request.status === 'ISSUED' || request.status === 'PARTIALLY_ISSUED'
                 ? formatIssuedFulfillmentLabel(request)
                 : formatIndentQueueStatus(
                     request.status,

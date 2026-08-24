@@ -97,7 +97,7 @@ export function IssueMaterialPage() {
     queryKey: ['ready-to-issue'],
     queryFn: async () => {
       const res = await api.get<{ data: MaterialRequestDto[] }>('/material-requests', {
-        params: { status: 'MATERIAL_RECEIVED,CHAIRMAN_APPROVED,ALLOCATED,ISSUED' },
+        params: { status: 'MATERIAL_RECEIVED,CHAIRMAN_APPROVED,ALLOCATED,ISSUED,PARTIALLY_ISSUED' },
       });
       return normalizeListData<MaterialRequestDto>(res.data.data);
     },
@@ -322,9 +322,14 @@ export function IssueMaterialPage() {
                     <td className="whitespace-nowrap">{formatDate(mr.createdAt)}</td>
                     <td>
                       <StatusBadge
-                        status={mr.status === 'ISSUED' && !isIndentFullyIssued(mr) ? 'PARTIALLY_ISSUED' : mr.status}
+                        status={
+                          mr.status === 'PARTIALLY_ISSUED' ||
+                          (mr.status === 'ISSUED' && !isIndentFullyIssued(mr))
+                            ? 'PARTIALLY_ISSUED'
+                            : mr.status
+                        }
                         label={
-                          mr.status === 'ISSUED'
+                          mr.status === 'ISSUED' || mr.status === 'PARTIALLY_ISSUED'
                             ? formatIssuedFulfillmentLabel(mr)
                             : formatIndentQueueStatus(
                                 mr.status,

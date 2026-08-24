@@ -108,6 +108,9 @@ export function formatIndentQueueStatus(
     pmProceededAllocation,
     allocationReviewStage,
   });
+  if (status === 'PARTIALLY_ISSUED') {
+    return 'Partially issued';
+  }
   if (stage === 'SITE_INCHARGE' || status === 'ISSUED') {
     return 'Issued to site';
   }
@@ -156,6 +159,8 @@ export function formatIndentQueueStatus(
       return `Approved by ${roleLabel(UserRole.COORDINATOR)}`;
     case 'MATERIAL_RECEIVED':
       return 'Received';
+    case 'PARTIALLY_ISSUED':
+      return 'Partially issued';
     case 'ISSUED':
       return 'Issued to site';
     default:
@@ -232,7 +237,7 @@ function toIndentRows(
     approverNames: r.approverNames,
     status: r.status,
     statusLabel:
-      r.status === 'ISSUED'
+      r.status === 'ISSUED' || r.status === 'PARTIALLY_ISSUED'
         ? formatIssuedFulfillmentLabel(r)
         : formatIndentQueueStatus(
             r.status,
