@@ -1,7 +1,7 @@
-import { useMemo, useState } from 'react';
-import { useParams, useSearchParams } from 'react-router-dom';
+import { useEffect, useMemo, useState } from 'react';
+import { useNavigate, useParams, useSearchParams } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
-import { formatCurrency, formatDate } from '@afios/shared';
+import { UserRole, formatCurrency, formatDate } from '@afios/shared';
 import { api } from '@/lib/api';
 import { ReportPageShell } from '@/components/reports/ReportPageShell';
 import { ListQueryBoundary } from '@/components/ListQueryBoundary';
@@ -9,7 +9,8 @@ import { EmptyState } from '@/components/EmptyState';
 import { Input } from '@/components/ui/Input';
 import { StatusBadge } from '@/components/ui/StatusBadge';
 import { exportCsv } from '@/lib/exportCsv';
-import { getReportById } from '@/lib/reportCatalog';
+import { getReportById, reportsHubPath } from '@/lib/reportCatalog';
+import { useAuthStore } from '@/stores/authStore';
 
 type Column = {
   key: string;
@@ -363,7 +364,39 @@ const REPORT_CONFIG: Record<
       { key: 'createdAt', label: 'Created', format: 'date' },
     ],
   },
+  'live-stock': {
+    api: '/stock/balance',
+    title: 'Live stock balance',
+    subtitle: 'Opening + inward − outward = current balance',
+    filename: 'live-stock',
+    columns: [
+      { key: 'itemCode', label: 'Item code' },
+      { key: 'itemDescription', label: 'Description' },
+      { key: 'unit', label: 'Unit' },
+      { key: 'openingBalance', label: 'Opening' },
+      { key: 'totalReceived', label: 'Received' },
+      { key: 'totalIssued', label: 'Issued' },
+      { key: 'currentBalance', label: 'Current balance' },
+    ],
+  },
+  'stock-aging': {
+    api: '/stock/aging',
+    title: 'Stock aging',
+    subtitle: 'FIFO batches and opening / non-FIFO remainder',
+    filename: 'stock-aging',
+    columns: [
+      { key: 'itemCode', label: 'Item code' },
+      { key: 'itemDescription', label: 'Description' },
+      { key: 'unit', label: 'Unit' },
+      { key: 'grnNumber', label: 'Batch / GRN' },
+      { key: 'availableQuantity', label: 'Qty' },
+      { key: 'agingDays', label: 'Aging days' },
+      { key: 'source', label: 'Source' },
+    ],
+  },
 };
+
+export { REPORT_CONFIG };
 
 function cellValue(row: Record<string, unknown>, col: Column) {
   const raw = row[col.key];
@@ -381,8 +414,15 @@ function cellValue(row: Record<string, unknown>, col: Column) {
   return String(raw);
 }
 
-export function OperationalReportPage() {
-  const { reportId = '' } = useParams<{ reportId: string }>();
+export function OperationalReportView({
+  reportId,
+  extraParams,
+  onBack,
+}: {
+  reportId: string;
+  extraParams?: Record<string, string>;
+  onBack?: () => void;
+}) {
   const [params, setParams] = useSearchParams();
   const config = REPORT_CONFIG[reportId];
   const meta = getReportById(reportId);
@@ -390,14 +430,14 @@ export function OperationalReportPage() {
   const [to, setTo] = useState(params.get('to') || '');
 
   const queryParams = useMemo(() => {
-    const q: Record<string, string> = {};
+    const q: Record<string, string> = { ...(extraParams || {}) };
     if (from) q.from = from;
     if (to) q.to = to;
     if (params.get('overdue')) q.overdue = params.get('overdue')!;
     if (params.get('mine')) q.mine = params.get('mine')!;
     if (params.get('status')) q.status = params.get('status')!;
     return q;
-  }, [from, to, params]);
+  }, [from, to, params, extraParams]);
 
   const { data: rows, isLoading, isError, refetch, isFetching } = useQuery({
     queryKey: ['operational-report', reportId, queryParams],
@@ -413,6 +453,15 @@ export function OperationalReportPage() {
   if (!config) {
     return (
       <div className="page-container">
+        {onBack ? (
+          <button
+            type="button"
+            onClick={onBack}
+            className="inline-flex items-center gap-2 text-sm font-medium text-ink-secondary hover:text-ink mb-3"
+          >
+            All reports
+          </button>
+        ) : null}
         <EmptyState
           title="Report not found"
           description="This report id is not available. Open Reports from the sidebar."
@@ -427,13 +476,14 @@ export function OperationalReportPage() {
     else next.delete('from');
     if (to) next.set('to', to);
     else next.delete('to');
-    setParams(next);
+    setParams(next, { replace: true });
   };
 
   return (
     <ReportPageShell
       title={meta?.title || config.title}
       subtitle={meta?.description || config.subtitle}
+      onBack={onBack}
       onExportCsv={() =>
         exportCsv(
           config.filename,
@@ -516,4 +566,20 @@ export function OperationalReportPage() {
       </ListQueryBoundary>
     </ReportPageShell>
   );
+}
+
+export function OperationalReportPage() {
+  const { reportId = '' } = useParams<{ reportId: string }>();
+  const [params] = useSearchParams();
+  const role = useAuthStore((s) => s.user?.role) as UserRole | undefined;
+  const navigate = useNavigate();
+
+  useEffect(() => {
+    if (!role || !reportId) return;
+    const next = new URLSearchParams(params);
+    next.set('report', reportId);
+    navigate(`${reportsHubPath(role)}?${next.toString()}`, { replace: true });
+  }, [role, reportId, params, navigate]);
+
+  return null;
 }

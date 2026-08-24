@@ -538,3 +538,46 @@ export function getReportsForRole(role: UserRole): ReportDefinition[] {
 export function getReportById(id: string): ReportDefinition | undefined {
   return REPORT_CATALOG.find((r) => r.id === id);
 }
+
+export type ReportEmbedName =
+  | 'finance'
+  | 'monthly-finance'
+  | 'explorer'
+  | 'vendors'
+  | 'misc-purchases'
+  | 'user-analytics'
+  | 'category-materials';
+
+export type ReportViewer =
+  | { type: 'grid'; configId: string; extraParams?: Record<string, string> }
+  | { type: 'embed'; name: ReportEmbedName };
+
+const GRID_ALIASES: Record<string, { configId: string; extraParams?: Record<string, string> }> = {
+  'inward-register': { configId: 'grn-register' },
+  'outward-register': { configId: 'issue-register' },
+  'grn-list': { configId: 'grn-register' },
+  'open-pos-browse': { configId: 'open-po' },
+  'indents-browse': { configId: 'indent-aging' },
+  'delivery-alerts': { configId: 'open-po', extraParams: { overdue: '1' } },
+  'site-consumption': { configId: 'indent-aging', extraParams: { mine: '1' } },
+  'branch-transfers': { configId: 'branch-transfer-register' },
+  'po-verify': { configId: 'open-po' },
+  'grn-hold': { configId: 'three-way' },
+  'audit-log': { configId: 'approval-trail' },
+};
+
+const EMBED_IDS: Record<string, ReportEmbedName> = {
+  finance: 'finance',
+  'monthly-finance': 'monthly-finance',
+  explorer: 'explorer',
+  vendors: 'vendors',
+  'misc-purchases': 'misc-purchases',
+  'user-analytics': 'user-analytics',
+  'category-materials': 'category-materials',
+};
+
+export function getReportViewer(id: string): ReportViewer | null {
+  if (EMBED_IDS[id]) return { type: 'embed', name: EMBED_IDS[id] };
+  if (GRID_ALIASES[id]) return { type: 'grid', ...GRID_ALIASES[id] };
+  return { type: 'grid', configId: id };
+}
