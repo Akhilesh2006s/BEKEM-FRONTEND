@@ -476,6 +476,8 @@ export interface MaterialRequestDto {
   materialId?: string;
   quantityRequested?: number;
   quantityAllocated?: number;
+  /** Legacy single-line issued qty (prefer items[].quantityIssued). */
+  quantityIssued?: number;
   purpose?: string;
   requestedByName?: string;
   location?: string;
