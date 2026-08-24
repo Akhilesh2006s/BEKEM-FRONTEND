@@ -131,6 +131,7 @@ export function getRoleNavShortcuts(
         { id: 'review-wos', label: 'Review work orders', href: '/executive/review-wos', icon: HardHat, section: 'workspace' },
         { id: 'generate-wo', label: 'Generate work order', href: '/executive/wo/new', icon: FilePlus, section: 'workspace' },
         { id: 'vendors', label: 'Vendors master list', href: '/vendors', icon: Users, section: 'workspace' },
+        { id: 'branch-transfers', label: 'Branch transfers', href: '/executive/branch-transfers', icon: Truck, section: 'workspace' },
         { id: 'finance', label: 'Finance & Tally', href: '/executive/finance', icon: BarChart3, section: 'workspace' },
         { id: 'stock', label: 'Live stock balance', href: '/store/stock', icon: Package, section: 'workspace' },
         reportsNav(role),

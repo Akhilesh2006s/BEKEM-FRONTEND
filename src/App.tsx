@@ -1075,7 +1075,11 @@ export default function App() {
 
               <Route
                 path="/executive/branch-transfers"
-                element={<Navigate to="/executive" replace />}
+                element={
+                  <RoleGuard roles={[UserRole.EXECUTIVE]}>
+                    <BranchTransfersPage />
+                  </RoleGuard>
+                }
               />
 
               <Route

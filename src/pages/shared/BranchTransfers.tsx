@@ -10,15 +10,15 @@ import { EmptyState } from '@/components/EmptyState';
 import { ListQueryBoundary } from '@/components/ListQueryBoundary';
 import { StatusBadge } from '@/components/ui/StatusBadge';
 
-const HO_PENDING = ['REQUESTED', 'PM_APPROVED', 'COORDINATOR_DECIDED'];
+const HO_PENDING = ['REQUESTED', 'PM_APPROVED', 'COORDINATOR_DECIDED', 'EXECUTIVE_APPROVED'];
 
 function pageCopy(role: UserRole) {
   if (role === UserRole.EXECUTIVE) {
     return {
-      title: 'Branch transfer dashboard',
-      subtitle: 'Monitor branch transfer requests across all projects',
-      empty: 'No branch transfers to display.',
-      actionLabel: 'Awaiting Head Office action',
+      title: 'Branch transfers',
+      subtitle: 'Approve or reject PM transfer requests — source PM then dispatches with challan',
+      empty: 'No branch transfers awaiting your review.',
+      actionLabel: 'Awaiting Executive approval',
     };
   }
   if (role === UserRole.CHAIRMAN) {
@@ -31,7 +31,7 @@ function pageCopy(role: UserRole) {
   }
   return {
     title: 'Branch transfer approvals',
-    subtitle: 'Approve or reject PM requests — then execute approved transfers',
+    subtitle: 'Monitor Executive-approved transfers through dispatch and receipt / GRN',
     empty: 'No branch transfers pending Head Office review.',
     actionLabel: 'Awaiting decision or execution',
   };
@@ -41,15 +41,18 @@ export function BranchTransfersPage() {
   const navigate = useNavigate();
   const role = useAuthStore((s) => s.user?.role) as UserRole;
   const copy = pageCopy(role);
-  const readOnly = role === UserRole.EXECUTIVE || role === UserRole.CHAIRMAN;
+  const isChairman = role === UserRole.CHAIRMAN;
+  const isExecutive = role === UserRole.EXECUTIVE;
 
   const { data: transfers, list } = useListQuery({
     queryKey: ['branch-transfers', role],
     queryFn: async () => {
       const res = await api.get<{ data: BranchTransferDto[] }>('/branch-transfers');
       const rows = normalizeListData<BranchTransferDto>(res.data.data);
-      if (readOnly && role === UserRole.CHAIRMAN) return rows;
-      if (readOnly) return rows.filter((t) => HO_PENDING.includes(t.status) || t.status === 'TRANSFERRED');
+      if (isChairman) return rows;
+      if (isExecutive) {
+        return rows.filter((t) => t.status === 'REQUESTED' || HO_PENDING.includes(t.status));
+      }
       return rows.filter((t) => HO_PENDING.includes(t.status));
     },
   });

@@ -1,5 +1,5 @@
-import { useState } from 'react';
-import { useNavigate, useParams } from 'react-router-dom';
+import { useMemo, useState } from 'react';
+import { useNavigate, useParams, Link } from 'react-router-dom';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { ArrowLeft } from 'lucide-react';
 import { toast } from 'sonner';
@@ -12,8 +12,6 @@ import { Input, Textarea } from '@/components/ui/Input';
 import { StatusBadge } from '@/components/ui/StatusBadge';
 import { StatusTimeline } from '@/components/StatusTimeline';
 import { SuccessScreen } from '@/components/SuccessScreen';
-import { SearchSelect } from '@/components/SearchSelect';
-import type { MaterialSearchResultDto } from '@afios/shared';
 import { getRoleHomePath } from '@/lib/rolePaths';
 import { DetailField, DetailFieldGrid } from '@/components/ui/DetailFields';
 
@@ -26,11 +24,12 @@ export function BranchTransferDetailPage() {
   const [note, setNote] = useState('');
   const [done, setDone] = useState(false);
   const [doneMessage, setDoneMessage] = useState('');
-  const [decisionMode, setDecisionMode] = useState<'idle' | 'transfer' | 'raise_po'>('idle');
-  const [fromProjectId, setFromProjectId] = useState('');
-  const [toProjectId, setToProjectId] = useState('');
-  const [materialId, setMaterialId] = useState('');
-  const [quantity, setQuantity] = useState('');
+  const [challanNo, setChallanNo] = useState('');
+  const [expectedArrivalDate, setExpectedArrivalDate] = useState('');
+  const [dispatchNote, setDispatchNote] = useState('');
+  const [receiveQtyByMaterial, setReceiveQtyByMaterial] = useState<Record<string, string>>({});
+  const [receiveChallan, setReceiveChallan] = useState('');
+  const [receiveNote, setReceiveNote] = useState('');
 
   const accent =
     role === UserRole.COORDINATOR
@@ -58,53 +57,12 @@ export function BranchTransferDetailPage() {
     queryClient.invalidateQueries({ queryKey: ['pm-cross-stock-all'] });
   };
 
-  const coordinatorDecide = useMutation({
-    mutationFn: (decision: 'transfer' | 'raise_po_instead') =>
-      api.post(`/branch-transfers/${id}/coordinator-decide`, {
-        decision,
-        note,
-        fromProjectId: fromProjectId || transfer?.fromProjectId,
-        toProjectId: toProjectId || transfer?.toProjectId,
-        items:
-          materialId && quantity
-            ? [{ materialId, quantity: parseFloat(quantity) }]
-            : transfer?.items?.map((i) => ({
-                materialId: i.materialId!,
-                quantity: i.quantity,
-              })),
-      }),
-    onSuccess: (res, decision) => {
-      if (decision === 'raise_po_instead') {
-        const redirect = res.data.data.redirect;
-        if (redirect?.path) {
-          navigate(redirect.path);
-          toast.success('Redirecting to PO workflow');
-          return;
-        }
-        setDoneMessage('Marked to raise PO instead — indent forwarded to PM');
-      } else {
-        setDoneMessage('Transfer approved — execute when ready');
-      }
-      setDone(true);
-    },
-    onError: () => toast.error('Decision failed'),
-    onSettled: invalidate,
-  });
-
-  const coordinatorReject = useMutation({
-    mutationFn: () => api.post(`/branch-transfers/${id}/coordinator-reject`, { note }),
-    onSuccess: () => {
-      setDoneMessage('Branch transfer rejected');
-      setDone(true);
-    },
-    onError: () => toast.error('Rejection failed'),
-    onSettled: invalidate,
-  });
-
   const executiveApprove = useMutation({
     mutationFn: () => api.post(`/branch-transfers/${id}/executive-approve`, { note }),
     onSuccess: () => {
-      setDoneMessage('Branch transfer approved — stock updated at source and requesting projects');
+      setDoneMessage(
+        'Approved — source Project Manager will dispatch with challan and expected arrival date'
+      );
       setDone(true);
     },
     onError: () => toast.error('Approval failed'),
@@ -121,15 +79,55 @@ export function BranchTransferDetailPage() {
     onSettled: invalidate,
   });
 
-  const execute = useMutation({
-    mutationFn: () => api.post(`/branch-transfers/${id}/execute`, { note }),
+  const dispatch = useMutation({
+    mutationFn: () =>
+      api.post(`/branch-transfers/${id}/dispatch`, {
+        challanNo,
+        expectedArrivalDate,
+        dispatchNote,
+      }),
     onSuccess: () => {
-      setDoneMessage('Stock transferred successfully — no PO created');
+      setDoneMessage('Dispatched — requesting PM will submit receipt and GRN on arrival');
       setDone(true);
     },
-    onError: () => toast.error('Transfer execution failed'),
+    onError: (err: { response?: { data?: { message?: string } } }) =>
+      toast.error(err.response?.data?.message || 'Dispatch failed'),
     onSettled: invalidate,
   });
+
+  const receive = useMutation({
+    mutationFn: () => {
+      const items = (transfer?.items || [])
+        .map((item) => {
+          const mid = item.materialId || '';
+          const qty = Number(receiveQtyByMaterial[mid] ?? item.quantityRemaining ?? 0);
+          return { materialId: mid, quantity: qty };
+        })
+        .filter((i) => i.materialId && i.quantity > 0);
+      return api.post(`/branch-transfers/${id}/receive`, {
+        challanNo: receiveChallan || transfer?.challanNo,
+        note: receiveNote,
+        items,
+      });
+    },
+    onSuccess: (res) => {
+      const grnNumber = res.data?.grn?.grnNumber;
+      setDoneMessage(
+        grnNumber
+          ? `Receipt posted — GRN ${grnNumber} created`
+          : 'Receipt posted — GRN created for this arrival'
+      );
+      setDone(true);
+    },
+    onError: (err: { response?: { data?: { message?: string } } }) =>
+      toast.error(err.response?.data?.message || 'Receipt failed'),
+    onSettled: invalidate,
+  });
+
+  const receiveDefaultsReady = useMemo(() => {
+    if (!transfer?.items?.length) return false;
+    return transfer.items.some((i) => (i.quantityRemaining ?? i.quantity - (i.quantityReceived || 0)) > 0);
+  }, [transfer]);
 
   if (done) {
     return (
@@ -171,10 +169,18 @@ export function BranchTransferDetailPage() {
           {transfer.items?.map((item, i) => (
             <DetailField key={i} label="Material" labelClassName="text-gray-500">
               {item.materialName}: {item.quantity}
+              {item.quantityReceived != null && item.quantityReceived > 0
+                ? ` · received ${item.quantityReceived}`
+                : ''}
             </DetailField>
           ))}
           {transfer.note && (
-            <DetailField label="Note" fullWidth labelClassName="text-gray-500" valueClassName="text-sm font-normal">
+            <DetailField
+              label="Note"
+              fullWidth
+              labelClassName="text-gray-500"
+              valueClassName="text-sm font-normal"
+            >
               {transfer.note}
             </DetailField>
           )}
@@ -183,19 +189,68 @@ export function BranchTransferDetailPage() {
               {transfer.requestedBy}
             </DetailField>
           )}
+          {transfer.challanNo && (
+            <DetailField label="Challan" labelClassName="text-gray-500">
+              {transfer.challanNo}
+            </DetailField>
+          )}
+          {transfer.expectedArrivalDate && (
+            <DetailField label="Expected arrival" labelClassName="text-gray-500">
+              {new Date(transfer.expectedArrivalDate).toLocaleDateString('en-IN')}
+            </DetailField>
+          )}
+          {transfer.dispatchNote && (
+            <DetailField
+              label="Dispatch note"
+              fullWidth
+              labelClassName="text-gray-500"
+              valueClassName="text-sm font-normal"
+            >
+              {transfer.dispatchNote}
+            </DetailField>
+          )}
+
           {role === UserRole.PROJECT_MANAGER && transfer.status === 'REQUESTED' && (
             <p className="w-full basis-full text-xs text-ink-secondary rounded-lg bg-surface-muted px-3 py-2">
-              Awaiting Executive approval. You cannot approve your own branch transfer request.
+              Awaiting Executive approval.
             </p>
           )}
           {role === UserRole.EXECUTIVE && transfer.status === 'REQUESTED' && (
             <p className="w-full basis-full text-xs text-ink-secondary rounded-lg bg-surface-muted px-3 py-2">
-              Approve to move stock immediately: source project(s) deducted, requesting project
-              increased. Or reject the transfer.
+              Approve to send to the source Project Manager for dispatch (challan + ETA). Stock moves
+              only after dispatch and destination receipt.
+            </p>
+          )}
+          {transfer.status === 'EXECUTIVE_APPROVED' && (
+            <p className="w-full basis-full text-xs text-ink-secondary rounded-lg bg-surface-muted px-3 py-2">
+              Source PM must confirm challan and expected arrival, then dispatch.
+            </p>
+          )}
+          {(transfer.status === 'DISPATCHED' || transfer.status === 'PARTIALLY_RECEIVED') && (
+            <p className="w-full basis-full text-xs text-ink-secondary rounded-lg bg-surface-muted px-3 py-2">
+              Material in transit / partial. Requesting PM submits receipt — each receipt creates a
+              GRN.
             </p>
           )}
         </DetailFieldGrid>
       </Card>
+
+      {(transfer.receiptGrns?.length || 0) > 0 && (
+        <Card className="mb-3 p-4 space-y-2">
+          <p className="text-sm font-semibold text-ink">Receipt GRNs</p>
+          <ul className="space-y-2">
+            {transfer.receiptGrns!.map((g) => (
+              <li key={g.id} className="text-sm flex justify-between gap-2">
+                <span className="font-medium text-ink">{g.grnNumber}</span>
+                <span className="text-ink-secondary tabular-nums">
+                  qty {g.receivedQuantity ?? '—'}
+                  {g.challanNo ? ` · ${g.challanNo}` : ''}
+                </span>
+              </li>
+            ))}
+          </ul>
+        </Card>
+      )}
 
       <h2 className="font-semibold text-sm mb-3">Timeline</h2>
       <StatusTimeline entityType="BranchTransfer" entityId={transfer.id} />
@@ -231,146 +286,110 @@ export function BranchTransferDetailPage() {
         </div>
       )}
 
-      {transfer.canCoordinatorDecide && (
+      {transfer.canSourceDispatch && (
         <div className="mt-6 space-y-3 border-t border-surface-border pt-6">
-          <h2 className="font-semibold text-sm">Head Office decision</h2>
-          <p className="text-sm text-ink-secondary">
-            Approve the inter-project transfer, raise a PO instead, or reject the request.
+          <h2 className="font-semibold text-sm">Source PM — dispatch</h2>
+          <p className="text-xs text-ink-secondary">
+            Confirm you are releasing this stock. Enter challan number and when it should arrive.
+            Source stock is deducted on dispatch.
           </p>
-
-          {decisionMode === 'transfer' && (
-            <div className="space-y-3 rounded-xl border border-surface-border p-4">
-              <label className="text-sm font-medium">Source project</label>
-              <SearchSelect
-                value={fromProjectId || transfer.fromProjectId || null}
-                onChange={(pid) => setFromProjectId(pid)}
-                searchPath="/branch-transfers/targets/search"
-                searchParams={
-                  toProjectId || transfer.toProjectId
-                    ? { excludeProjectId: (toProjectId || transfer.toProjectId)! }
-                    : undefined
-                }
-                mapResult={(raw) => {
-                  const p = raw as { id: string; code: string; name: string };
-                  return { id: p.id, label: `${p.code} — ${p.name}` };
-                }}
-                placeholder="Search source project…"
-              />
-              <label className="text-sm font-medium">Destination project</label>
-              <SearchSelect
-                value={toProjectId || transfer.toProjectId || null}
-                onChange={(pid) => setToProjectId(pid)}
-                searchPath="/projects/search"
-                mapResult={(raw) => {
-                  const p = raw as { id: string; code: string; name: string };
-                  return { id: p.id, label: `${p.code} — ${p.name}` };
-                }}
-                placeholder="Search destination project…"
-              />
-              <SearchSelect
-                value={materialId || transfer.items?.[0]?.materialId || null}
-                onChange={(mid) => setMaterialId(mid)}
-                searchPath="/materials/search"
-                mapResult={(raw) => {
-                  const m = raw as MaterialSearchResultDto;
-                  return { id: m.id, label: m.name || m.description, sublabel: m.unit };
-                }}
-                placeholder="Material…"
-              />
-              <Input
-                type="number"
-                placeholder="Quantity"
-                value={quantity || String(transfer.items?.[0]?.quantity || '')}
-                onChange={(e) => setQuantity(e.target.value)}
-              />
-            </div>
-          )}
-
+          <label className="block text-sm font-medium text-ink">
+            Challan number *
+            <Input
+              className="mt-1"
+              value={challanNo}
+              onChange={(e) => setChallanNo(e.target.value)}
+              placeholder="e.g. CH/2026/001"
+            />
+          </label>
+          <label className="block text-sm font-medium text-ink">
+            Expected arrival date *
+            <Input
+              className="mt-1"
+              type="date"
+              value={expectedArrivalDate}
+              onChange={(e) => setExpectedArrivalDate(e.target.value)}
+            />
+          </label>
           <Textarea
-            value={note}
-            onChange={(e) => setNote(e.target.value)}
-            placeholder="Decision note…"
+            value={dispatchNote}
+            onChange={(e) => setDispatchNote(e.target.value)}
+            placeholder="Optional dispatch note (vehicle, contact…)…"
           />
-
-          {decisionMode === 'idle' && (
-            <div className="flex flex-col gap-2">
-              <Button
-                variant="accent"
-                size="lg"
-                accentColor={accent}
-                onClick={() => setDecisionMode('transfer')}
-              >
-                Approve branch transfer
-              </Button>
-              <Button variant="secondary" size="lg" onClick={() => setDecisionMode('raise_po')}>
-                Raise PO instead
-              </Button>
-              <Button
-                variant="ghost"
-                size="lg"
-                className="text-danger"
-                disabled={coordinatorReject.isPending}
-                onClick={() => coordinatorReject.mutate()}
-              >
-                Reject request
-              </Button>
-            </div>
-          )}
-
-          {decisionMode === 'transfer' && (
-            <div className="flex flex-col gap-2">
-              <Button
-                variant="accent"
-                size="lg"
-                accentColor={accent}
-                disabled={coordinatorDecide.isPending}
-                onClick={() => coordinatorDecide.mutate('transfer')}
-              >
-                Confirm approval (no PO)
-              </Button>
-              <Button variant="ghost" size="lg" onClick={() => setDecisionMode('idle')}>
-                Go back
-              </Button>
-            </div>
-          )}
-
-          {decisionMode === 'raise_po' && (
-            <div className="rounded-xl border border-warning/30 bg-warning/5 p-4 space-y-3">
-              <p className="text-sm text-ink-secondary">
-                This will not transfer stock. The linked indent will be forwarded to PM for the normal PO path.
-              </p>
-              <Button
-                variant="accent"
-                size="lg"
-                accentColor={ROLE_COLORS[UserRole.COORDINATOR].accent}
-                disabled={coordinatorDecide.isPending}
-                onClick={() => coordinatorDecide.mutate('raise_po_instead')}
-              >
-                Confirm — raise PO instead
-              </Button>
-              <Button variant="ghost" size="lg" onClick={() => setDecisionMode('idle')}>
-                Cancel
-              </Button>
-            </div>
-          )}
-        </div>
-      )}
-
-      {transfer.canExecute && (
-        <div className="mt-6 space-y-3 border-t border-surface-border pt-6">
-          <p className="text-sm text-ink-secondary">
-            Execute the atomic stock transfer — both project ledgers will update. No PO, PDF, vendor email, or GRN.
-          </p>
           <Button
             variant="accent"
             size="lg"
             accentColor={accent}
-            disabled={execute.isPending}
-            onClick={() => execute.mutate()}
+            disabled={!challanNo.trim() || !expectedArrivalDate || dispatch.isPending}
+            onClick={() => dispatch.mutate()}
           >
-            Execute transfer
+            Dispatch to requesting project
           </Button>
         </div>
+      )}
+
+      {transfer.canReceive && receiveDefaultsReady && (
+        <div className="mt-6 space-y-3 border-t border-surface-border pt-6">
+          <h2 className="font-semibold text-sm">Requesting PM — submit receipt</h2>
+          <p className="text-xs text-ink-secondary">
+            After material arrives, record quantities received. Each submission creates a GRN (partial
+            arrivals can create multiple GRNs).
+          </p>
+          {transfer.items?.map((item) => {
+            const mid = item.materialId || '';
+            const remaining =
+              item.quantityRemaining ?? Math.max(0, item.quantity - (item.quantityReceived || 0));
+            if (remaining <= 0) return null;
+            const value = receiveQtyByMaterial[mid] ?? String(remaining);
+            return (
+              <label key={mid} className="block text-sm font-medium text-ink">
+                {item.materialName || 'Material'} — receive qty (max {remaining})
+                <Input
+                  className="mt-1"
+                  type="number"
+                  min={0}
+                  max={remaining}
+                  value={value}
+                  onChange={(e) =>
+                    setReceiveQtyByMaterial((prev) => ({ ...prev, [mid]: e.target.value }))
+                  }
+                />
+              </label>
+            );
+          })}
+          <label className="block text-sm font-medium text-ink">
+            Challan (optional override)
+            <Input
+              className="mt-1"
+              value={receiveChallan}
+              onChange={(e) => setReceiveChallan(e.target.value)}
+              placeholder={transfer.challanNo || 'Challan on receipt'}
+            />
+          </label>
+          <Textarea
+            value={receiveNote}
+            onChange={(e) => setReceiveNote(e.target.value)}
+            placeholder="Receipt note…"
+          />
+          <Button
+            variant="accent"
+            size="lg"
+            accentColor={accent}
+            disabled={receive.isPending}
+            onClick={() => receive.mutate()}
+          >
+            Submit receipt & create GRN
+          </Button>
+        </div>
+      )}
+
+      {transfer.materialRequestId && (
+        <p className="mt-4 text-xs text-ink-muted">
+          Linked indent:{' '}
+          <Link className="text-bekem-accent underline" to={`/incidents/${transfer.materialRequestId}`}>
+            open indent
+          </Link>
+        </p>
       )}
     </div>
   );
