@@ -28,6 +28,20 @@ function timelineBadgeLabel(event: StatusHistoryDto): string {
   if (who === 'System') {
     return event.toStatus.replace(/_/g, ' ');
   }
+  // Create / first submit — not an approval.
+  if (!event.fromStatus) {
+    return `Submitted by ${who}`;
+  }
+  const to = event.toStatus || '';
+  if (
+    to.includes('ISSUED') ||
+    to.includes('RECEIVED') ||
+    to.includes('DISPATCHED') ||
+    to.includes('TRANSFERRED') ||
+    to.includes('ALLOCATED')
+  ) {
+    return `${to.replace(/_/g, ' ')} · ${who}`;
+  }
   return `Approved by ${who}`;
 }
 

@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef, useMemo } from 'react';
 import { useQuery, useMutation } from '@tanstack/react-query';
+import { useSearchParams } from 'react-router-dom';
 import { ArrowLeft, Upload, FileText, Image as ImageIcon, ChevronRight } from 'lucide-react';
 import { toast } from 'sonner';
 import { api } from '@/lib/api';
@@ -40,6 +41,10 @@ interface GrnListRow {
   id: string;
   grnNumber: string;
   purchaseOrderId?: string | null;
+  branchTransferId?: string | null;
+  transferNumber?: string;
+  /** PO number or "BT {transferNumber}" for branch-transfer receipts. */
+  orderName?: string;
   poNumber: string;
   indentNumber: string;
   projectCode?: string;
@@ -151,6 +156,7 @@ function hasAttachmentCategory(attachments: GrnAttachment[], category: Attachmen
 
 export function GrnReceivePage() {
   const accent = ROLE_COLORS[UserRole.COORDINATOR].primary;
+  const [searchParams, setSearchParams] = useSearchParams();
   const [selectedPo, setSelectedPo] = useState<PurchaseOrderDto | null>(null);
   const [selectedGrnId, setSelectedGrnId] = useState<string | null>(null);
   const [receiptLines, setReceiptLines] = useState<PoGrnReceiptLineDto[]>([]);
@@ -199,6 +205,22 @@ export function GrnReceivePage() {
     },
     enabled: !!selectedGrnId,
   });
+
+  useEffect(() => {
+    const grnFromUrl = searchParams.get('grn');
+    if (grnFromUrl && /^[a-f\d]{24}$/i.test(grnFromUrl)) {
+      setSelectedPo(null);
+      setSelectedGrnId(grnFromUrl);
+    }
+  }, [searchParams]);
+
+  useEffect(() => {
+    if (!selectedGrnId) return;
+    const next = new URLSearchParams(searchParams);
+    if (next.get('grn') === selectedGrnId) return;
+    next.set('grn', selectedGrnId);
+    setSearchParams(next, { replace: true });
+  }, [selectedGrnId, searchParams, setSearchParams]);
 
   const {
     data: grnContext,
@@ -408,7 +430,12 @@ export function GrnReceivePage() {
         <div className="space-y-3">
           <button
             type="button"
-            onClick={() => setSelectedGrnId(null)}
+            onClick={() => {
+              setSelectedGrnId(null);
+              const next = new URLSearchParams(searchParams);
+              next.delete('grn');
+              setSearchParams(next, { replace: true });
+            }}
             className="inline-flex items-center gap-2 text-sm font-medium text-ink-secondary hover:text-ink"
           >
             <ArrowLeft className="h-4 w-4" />
@@ -436,7 +463,9 @@ export function GrnReceivePage() {
                     </p>
                     <h2 className="text-lg font-semibold text-ink mt-0.5">{grnDetail.grnNumber}</h2>
                     <p className="text-sm text-ink-secondary mt-1">
-                      {grnDetail.poNumber} · {grnDetail.vendorName}
+                      {(grnDetail.orderName || grnDetail.poNumber || grnDetail.transferNumber || '—') +
+                        ' · ' +
+                        (grnDetail.vendorName || '—')}
                     </p>
                   </div>
                   <StatusBadge status={grnDetail.status} />
@@ -451,6 +480,9 @@ export function GrnReceivePage() {
                       })}
                     </DetailField>
                   )}
+                  <DetailField label="Order (PO / BT)">
+                    {grnDetail.orderName || grnDetail.poNumber || grnDetail.transferNumber || '—'}
+                  </DetailField>
                   <DetailField label="Indent">{grnDetail.indentNumber || '—'}</DetailField>
                   <DetailField label="Received on">
                     {grnDetail.receivedAt ? formatDate(grnDetail.receivedAt) : '—'}
@@ -639,10 +671,10 @@ export function GrnReceivePage() {
                   <thead>
                     <tr>
                       <th>GRN Number</th>
-                      <th>PO Number</th>
+                      <th>Order (PO / BT)</th>
                       <th>Indent Number</th>
                       <th>Project</th>
-                      <th>Vendor</th>
+                      <th>Vendor / Source</th>
                       <th>Invoice</th>
                       <th>Material Receipt Date</th>
                       <th className="num">Ordered</th>
@@ -667,7 +699,9 @@ export function GrnReceivePage() {
                         onClick={() => openGrn(g.id)}
                       >
                         <td className="cell-code whitespace-nowrap">{g.grnNumber}</td>
-                        <td className="cell-code whitespace-nowrap">{g.poNumber || '—'}</td>
+                        <td className="cell-code whitespace-nowrap">
+                          {g.orderName || g.poNumber || g.transferNumber || '—'}
+                        </td>
                         <td className="cell-code whitespace-nowrap">{g.indentNumber || '—'}</td>
                         <td className="cell-text whitespace-nowrap">
                           {formatProjectLabel({ code: g.projectCode, name: g.projectName })}
