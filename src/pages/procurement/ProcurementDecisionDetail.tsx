@@ -61,7 +61,7 @@ export function ProcurementDecisionDetailPage({ listPath }: ProcurementDecisionD
     enabled: role === UserRole.COORDINATOR,
   });
 
-  const { data: projects }const { data: projects } = useQuery({
+  const { data: projects } = useQuery({
     queryKey: ['projects-active'],
     queryFn: async () => {
       const res = await api.get<{ data: ProjectDto[] }>('/projects', { params: { status: 'ACTIVE' } });
@@ -176,7 +176,7 @@ export function ProcurementDecisionDetailPage({ listPath }: ProcurementDecisionD
     },
   });
 
-  const stockItemsconst stockItems: IndentLineItemDto[] =
+  const stockItems: IndentLineItemDto[] =
     decision?.items.map((item) => ({
       id: item.id,
       materialId: item.materialId,
@@ -228,7 +228,7 @@ export function ProcurementDecisionDetailPage({ listPath }: ProcurementDecisionD
     return true;
   };
 
-  return (return (
+  return (
     <div className="page-container max-w-3xl">
       <header className="flex items-center gap-3 mb-3">
         <button
