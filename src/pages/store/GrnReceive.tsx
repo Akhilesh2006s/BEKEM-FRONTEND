@@ -336,6 +336,12 @@ export function GrnReceivePage() {
       toast.error('Enter the quantity received in this GRN');
       return false;
     }
+    if (Number(grnContext?.remainingQty ?? 1) <= 0) {
+      toast.error(
+        'This PO is already fully covered by earlier GRNs (including any awaiting Coordinator approval)'
+      );
+      return false;
+    }
     if (!hasInvoiceUpload || !hasChallanUpload) {
       toast.error('Invoice and Challan uploads are required');
       return false;
@@ -751,7 +757,15 @@ export function GrnReceivePage() {
                   <p className="text-xs font-semibold uppercase tracking-widest text-ink-muted">
                     GRN — PO #{selectedPo.displayPoNumber || '—'}
                   </p>
-                  {receiptLines.some((l) => l.previouslyReceived > 0) && (
+                  {grnContext?.hasPendingApproval && (
+                    <p className="text-[11px] text-amber-900 bg-amber-50 border border-amber-200 rounded px-2 py-1 mt-2">
+                      GRN{' '}
+                      {(grnContext.pendingGrns || []).map((g) => g.grnNumber).join(', ') || 'pending'}{' '}
+                      awaits Coordinator approval. Remaining qty already claimed — submit another GRN only
+                      after partial balance is left.
+                    </p>
+                  )}
+                  {receiptLines.some((l) => l.previouslyReceived > 0) && !grnContext?.hasPendingApproval && (
                     <p className="text-[11px] text-amber-800 bg-amber-50 border border-amber-200 rounded px-2 py-1 mt-2">
                       Partial PO — enter only this delivery&apos;s qty/rates. Variances over tolerance go on hold.
                     </p>
@@ -763,9 +777,16 @@ export function GrnReceivePage() {
                     {formatProjectLabel(selectedPo.purchaseRequest?.project)} · {selectedPo.vendor?.name}
                   </p>
                 </div>
-                {grnContext?.grnNumber && (
+                {grnContext?.grnNumber && Number(grnContext.remainingQty ?? 1) > 0 && (
                   <p className="text-sm font-bold text-ink bg-surface-muted px-3 py-1.5 rounded-lg">
-                    Next: {grnContext.grnNumber}
+                    {grnContext.nextNumber > 1 || grnContext.showSequentialNumber
+                      ? `Next: ${grnContext.grnNumber}`
+                      : `GRN: ${grnContext.grnNumber}`}
+                  </p>
+                )}
+                {grnContext?.hasPendingApproval && Number(grnContext.remainingQty ?? 0) <= 0 && (
+                  <p className="text-sm font-bold text-amber-900 bg-amber-50 border border-amber-200 px-3 py-1.5 rounded-lg">
+                    Awaiting approval
                   </p>
                 )}
               </div>
@@ -1021,7 +1042,11 @@ export function GrnReceivePage() {
                   <Button
                     variant="accent"
                     accentColor={accent}
-                    disabled={receive.isPending}
+                    disabled={
+                      receive.isPending ||
+                      Number(grnContext?.remainingQty ?? 1) <= 0 ||
+                      Boolean(grnContext?.hasPendingApproval && Number(grnContext?.remainingQty ?? 0) <= 0)
+                    }
                     onClick={() => submitGrn(false)}
                   >
                     {receive.isPending ? 'Submitting…' : 'Submit GRN'}
