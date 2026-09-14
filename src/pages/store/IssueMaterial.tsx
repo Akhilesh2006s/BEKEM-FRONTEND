@@ -33,6 +33,7 @@ type IssueLineSource = {
   quantityIssued?: number;
   availableQty?: number;
   availableToIssueQty?: number;
+  remainingToIssueQty?: number;
   unit?: string;
   material?: MaterialRequestDto['material'];
 };
@@ -47,6 +48,7 @@ function lineItems(mr: MaterialRequestDto): IssueLineSource[] {
       quantityIssued: item.quantityIssued,
       availableQty: item.availableQty,
       availableToIssueQty: item.availableToIssueQty,
+      remainingToIssueQty: item.remainingToIssueQty,
       unit: item.unit,
       material: item.material,
     }));
@@ -105,19 +107,31 @@ export function IssueMaterialPage() {
 
   const maxIssuable = (item: {
     availableToIssueQty?: number;
+    remainingToIssueQty?: number;
     quantityAllocated?: number;
     quantityIssued?: number;
     quantityRequested?: number;
     availableQty?: number;
-  }) => {
+  }, indentStatus?: string) => {
     const remainingRequest = Math.max(
       0,
-      Number(item.quantityRequested || 0) - Number(item.quantityIssued || 0)
+      Number(item.remainingToIssueQty != null
+        ? item.remainingToIssueQty
+        : Number(item.quantityRequested || 0) - Number(item.quantityIssued || 0))
     );
-    const allocatedBalance = Math.max(
+    let allocatedBalance = Math.max(
       0,
       Number(item.quantityAllocated || 0) - Number(item.quantityIssued || 0)
     );
+    if (
+      allocatedBalance <= 0 &&
+      remainingRequest > 0 &&
+      ['ALLOCATED', 'PARTIALLY_ISSUED', 'ISSUED', 'MATERIAL_RECEIVED', 'CHAIRMAN_APPROVED'].includes(
+        indentStatus || ''
+      )
+    ) {
+      allocatedBalance = remainingRequest;
+    }
     const ready =
       item.availableToIssueQty != null
         ? Number(item.availableToIssueQty)
@@ -128,15 +142,26 @@ export function IssueMaterialPage() {
   const issueLines = useMemo(() => {
     if (!selected) return [];
     return lineItems(selected).map((item) => {
-      const available = maxIssuable(item);
+      const available = maxIssuable(item, selected.status);
+      const remainingRequest = Math.max(
+        0,
+        Number(item.remainingToIssueQty != null
+          ? item.remainingToIssueQty
+          : Number(item.quantityRequested || 0) - Number(item.quantityIssued || 0))
+      );
       const key = item.id || item.materialId;
-      const issued = issuedQtyByLine[key] ?? available;
+      const rawIssued = issuedQtyByLine[key];
+      const issued =
+        rawIssued == null
+          ? available
+          : Math.min(available, Math.max(0, Number(rawIssued) || 0));
       return {
         key,
         materialId: item.materialId,
         itemCode: item.material?.code || '—',
         description: item.material?.name || 'Material',
         unit: item.unit || item.material?.unit || '',
+        remainingRequest,
         available,
         issued,
         balance: Math.max(0, Math.round((available - issued + Number.EPSILON) * 100) / 100),
@@ -163,7 +188,7 @@ export function IssueMaterialPage() {
     const next: Record<string, number> = {};
     lineItems(mr).forEach((item) => {
       const key = item.id || item.materialId;
-      next[key] = maxIssuable(item);
+      next[key] = maxIssuable(item, mr.status);
     });
     setIssuedQtyByLine(next);
     setIssuedAt(new Date().toISOString().slice(0, 10));
@@ -401,24 +426,42 @@ export function IssueMaterialPage() {
                         <td className="num tabular-nums">{requested}</td>
                         <td className="num tabular-nums">{alreadyIssued}</td>
                         <td className="num tabular-nums font-semibold text-emerald-700">
-                          {line.available}
+                          {line.remainingRequest}
                         </td>
                         <td className="num">
                           <Input
                             type="number"
+                            inputMode="decimal"
                             min={0}
-                            max={line.available}
+                            max={line.available > 0 ? line.available : undefined}
                             step="any"
-                            className="w-24 ml-auto text-right"
-                            value={line.issued}
+                            disabled={line.available <= 0}
+                            title={
+                              line.available <= 0
+                                ? 'No quantity available to issue for this line'
+                                : `Max ${line.available}`
+                            }
+                            className="w-28 ml-auto text-right tabular-nums"
+                            value={line.issued === 0 ? '' : line.issued}
                             onChange={(e) => {
-                              const raw = Number(e.target.value);
-                              const nextQty = Number.isFinite(raw)
-                                ? Math.min(line.available, Math.max(0, raw))
-                                : 0;
+                              const raw = e.target.value.trim();
+                              if (raw === '') {
+                                setIssuedQtyByLine((prev) => ({ ...prev, [line.key]: 0 }));
+                                return;
+                              }
+                              if (!/^\d*\.?\d*$/.test(raw)) return;
+                              const parsed = Number(raw);
+                              if (!Number.isFinite(parsed)) return;
+                              const nextQty = Math.min(
+                                line.available,
+                                Math.max(0, parsed)
+                              );
                               setIssuedQtyByLine((prev) => ({ ...prev, [line.key]: nextQty }));
                             }}
                           />
+                          {line.available <= 0 ? (
+                            <p className="text-[10px] text-danger mt-1 text-right">Not available</p>
+                          ) : null}
                         </td>
                         <td className="num tabular-nums">{line.balance}</td>
                         <td>{line.unit || '—'}</td>
