@@ -1050,8 +1050,8 @@ export function RequestDetailPage() {
           <p className="text-sm font-semibold text-ink">Coordinator decision</p>
           <p className="text-xs text-ink-secondary mt-1">
             {coordinatorCanCloseWithinCap
-              ? 'Can locally approve and close. No need to reach out to MD/Coordinator level.'
-              : 'This indent exceeds the remaining Coordinator daily cap — it will escalate to MD / Chairman.'}
+              ? `Within the ₹${(coordinatorCap?.dailyCap ?? 10000).toLocaleString('en-IN')}/day Coordinator limit — you can locally approve and close. No need to escalate to MD / Chairman.`
+              : `This indent exceeds the remaining Coordinator daily cap (₹${(coordinatorCap?.dailyCap ?? 10000).toLocaleString('en-IN')}/day) — it will escalate to MD / Chairman.`}
           </p>
           <div className="mt-3">
             <label className="text-sm font-medium text-ink-secondary block mb-2">
