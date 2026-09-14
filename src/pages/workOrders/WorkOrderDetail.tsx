@@ -420,7 +420,7 @@ export function WorkOrderDetailPage() {
               disabled={pmApprove.isPending}
               onClick={() => pmApprove.mutate()}
             >
-              Approve & send to Executive
+              Approve & proceed with allocation at store
             </Button>
           )}
           {isExecutiveReview && (
