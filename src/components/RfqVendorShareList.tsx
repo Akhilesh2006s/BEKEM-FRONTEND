@@ -1,7 +1,7 @@
-import { Download, Mail, MessageCircle } from 'lucide-react';
+import { Mail, MessageCircle } from 'lucide-react';
 import { toast } from 'sonner';
 import { api } from '@/lib/api';
-import { downloadExport } from '@/lib/downloadExport';
+import { PdfActions } from '@/components/PdfActions';
 import { Button } from '@/components/ui/Button';
 
 export interface RfqVendorShareRow {
@@ -69,14 +69,6 @@ function safeFilenamePart(value: string) {
 }
 
 export function RfqVendorShareList({ rfqId, rfqNumber, vendors, items }: RfqVendorShareListProps) {
-  const downloadVendorPdf = async (vendor: RfqVendorShareRow) => {
-    const name = vendor.vendorName || vendor.vendorId;
-    await downloadExport(
-      `/rfqs/${rfqId}/pdf?vendorId=${vendor.vendorId}`,
-      `${rfqNumber}-${safeFilenamePart(name)}.pdf`
-    );
-  };
-
   const emailVendor = async (vendor: RfqVendorShareRow) => {
     try {
       const res = await api.post<{ data: { sent: boolean; to?: string } }>(`/rfqs/${rfqId}/email`, {
@@ -162,15 +154,13 @@ export function RfqVendorShareList({ rfqId, rfqNumber, vendors, items }: RfqVend
                 {vendors.map((vendor) => (
                   <td key={vendor.vendorId}>
                     <div className="flex flex-wrap gap-1">
-                      <Button
-                        type="button"
-                        variant="secondary"
+                      <PdfActions
+                        path={`/rfqs/${rfqId}/pdf?vendorId=${vendor.vendorId}`}
+                        filename={`${rfqNumber}-${safeFilenamePart(vendor.vendorName || vendor.vendorId)}.pdf`}
                         size="sm"
-                        onClick={() => void downloadVendorPdf(vendor)}
-                      >
-                        <Download className="h-3.5 w-3.5" />
-                        PDF
-                      </Button>
+                        viewLabel="View"
+                        downloadLabel="PDF"
+                      />
                       <Button
                         type="button"
                         variant="secondary"

@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { ArrowLeft, Filter, Download } from 'lucide-react';
+import { ArrowLeft, Filter } from 'lucide-react';
 import { api } from '@/lib/api';
 import { formatDate } from '@afios/shared';
 import { formatAuditAction } from '@/lib/auditLabels';
@@ -11,8 +11,7 @@ import { Input } from '@/components/ui/Input';
 import { Button } from '@/components/ui/Button';
 import { ListQueryBoundary } from '@/components/ListQueryBoundary';
 import { useListQuery, normalizeListData } from '@/hooks/useListQuery';
-import { downloadExport } from '@/lib/downloadExport';
-import { toast } from 'sonner';
+import { PdfActions } from '@/components/PdfActions';
 
 export function AuditLogViewerPage() {
   const navigate = useNavigate();
@@ -20,24 +19,16 @@ export function AuditLogViewerPage() {
   const [action, setAction] = useState('');
   const [from, setFrom] = useState('');
   const [to, setTo] = useState('');
-  const [exporting, setExporting] = useState(false);
 
-  const exportPdf = async () => {
-    setExporting(true);
-    try {
-      const params = new URLSearchParams();
-      if (entityType) params.set('entityType', entityType);
-      if (action) params.set('action', action);
-      if (from) params.set('from', new Date(from).toISOString());
-      if (to) params.set('to', new Date(to).toISOString());
-      await downloadExport(`/exports/audit-logs.pdf?${params.toString()}`, 'audit-log.pdf');
-      toast.success('Audit log exported');
-    } catch {
-      toast.error('Export failed');
-    } finally {
-      setExporting(false);
-    }
-  };
+  const pdfQuery = (() => {
+    const params = new URLSearchParams();
+    if (entityType) params.set('entityType', entityType);
+    if (action) params.set('action', action);
+    if (from) params.set('from', new Date(from).toISOString());
+    if (to) params.set('to', new Date(to).toISOString());
+    const q = params.toString();
+    return q ? `/exports/audit-logs.pdf?${q}` : '/exports/audit-logs.pdf';
+  })();
 
   const { data: logs, list } = useListQuery({
     queryKey: ['audit-logs', entityType, action, from, to],
@@ -101,10 +92,7 @@ export function AuditLogViewerPage() {
             <Filter className="h-4 w-4" />
             {list.retrying ? 'Loading…' : 'Apply filters'}
           </Button>
-          <Button variant="secondary" size="sm" onClick={exportPdf} disabled={exporting}>
-            <Download className="h-4 w-4" />
-            {exporting ? 'Exporting…' : 'Export PDF'}
-          </Button>
+          <PdfActions path={pdfQuery} filename="audit-log.pdf" />
           <Button
             variant="ghost"
             size="sm"

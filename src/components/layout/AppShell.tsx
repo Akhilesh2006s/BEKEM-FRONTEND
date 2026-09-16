@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
-import { NavLink, Outlet, useLocation } from 'react-router-dom';
-import { Bell, Search, Rows3 } from 'lucide-react';
+import { NavLink, Outlet, useLocation, useNavigate } from 'react-router-dom';
+import { ArrowLeft, Bell, Search, Rows3 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useAuthStore } from '@/stores/authStore';
 import { UserRole } from '@afios/shared';
@@ -21,11 +21,24 @@ import { RouteErrorBoundary } from '@/components/RouteErrorBoundary';
 export function AppShell() {
   const user = useAuthStore((s) => s.user);
   const location = useLocation();
+  const navigate = useNavigate();
   const { projectLabel } = useNavbarContext();
   const role = user?.role as UserRole;
   const homePath = role ? getRoleHomePath(role) : '/';
   const [searchOpen, setSearchOpen] = useState(false);
   const { density, toggle: toggleDensity } = useTableDensity();
+
+  const hideNav =
+    location.pathname.includes('/allocate') ||
+    location.pathname.includes('/forward') ||
+    location.pathname.includes('/executive/po/new') ||
+    location.pathname.includes('/executive/rfq/new');
+
+  const normalizedPath = location.pathname.replace(/\/+$/, '') || '/';
+  const homeNormalized = (homePath || '/').replace(/\/+$/, '') || '/';
+  const isRoleHome =
+    normalizedPath === homeNormalized || normalizedPath === '/' || normalizedPath === '/login';
+  const showGlobalBack = !hideNav && !isRoleHome;
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
@@ -49,12 +62,6 @@ export function AppShell() {
 
   const unread = notifications?.filter((n) => !n.isRead).length || 0;
 
-  const hideNav =
-    location.pathname.includes('/allocate') ||
-    location.pathname.includes('/forward') ||
-    location.pathname.includes('/executive/po/new') ||
-    location.pathname.includes('/executive/rfq/new');
-
   const roleBadgeClass =
     role === UserRole.CHAIRMAN
       ? 'text-gold-dark bg-gold-light border border-gold/25 px-2 py-0.5 rounded-md text-xs font-semibold'
@@ -77,6 +84,20 @@ export function AppShell() {
           <header className="sticky top-0 z-30 shrink-0 border-b border-surface-border bg-white">
             <div className="hidden lg:flex h-10 items-center justify-between px-3">
               <div className="flex items-center gap-2.5 min-w-0">
+                {showGlobalBack && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      if (window.history.length > 1) navigate(-1);
+                      else navigate(homePath);
+                    }}
+                    className="h-8 w-8 shrink-0 flex items-center justify-center rounded-lg border border-transparent text-ink-secondary hover:text-ink hover:bg-surface-muted hover:border-surface-border"
+                    aria-label="Go back"
+                    title="Go back"
+                  >
+                    <ArrowLeft className="h-4 w-4" strokeWidth={1.75} />
+                  </button>
+                )}
                 <p className="text-sm text-ink-secondary truncate">
                   {projectLabel ? (
                     <span className="font-semibold text-ink">{projectLabel}</span>
@@ -115,7 +136,21 @@ export function AppShell() {
             </div>
 
             <div className="lg:hidden flex h-10 items-center gap-2 px-2.5">
-              <BekemLogo size="sm" className="shrink-0" />
+              {showGlobalBack ? (
+                <button
+                  type="button"
+                  onClick={() => {
+                    if (window.history.length > 1) navigate(-1);
+                    else navigate(homePath);
+                  }}
+                  className="h-9 w-9 shrink-0 flex items-center justify-center rounded-lg border border-surface-border text-ink-secondary"
+                  aria-label="Go back"
+                >
+                  <ArrowLeft className="h-4 w-4" strokeWidth={1.75} />
+                </button>
+              ) : (
+                <BekemLogo size="sm" className="shrink-0" />
+              )}
               <button
                 type="button"
                 onClick={() => setSearchOpen(true)}

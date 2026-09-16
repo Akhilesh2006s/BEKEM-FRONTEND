@@ -318,7 +318,7 @@ export function MaterialIndentsTable({
 
   return (
     <div className="table-shell">
-      <table className="data-table w-full">
+      <table className={`data-table w-full ${showProcurementTrace ? 'min-w-[72rem]' : 'min-w-[56rem]'}`}>
         <thead>
           <tr>
             <th>Indent Number</th>

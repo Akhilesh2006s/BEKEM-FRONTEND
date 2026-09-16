@@ -26,6 +26,7 @@ export function MonthlyReportPage() {
       <PageHeader
         title="Monthly transaction report"
         subtitle="Grocery, mess, misc purchases & PO bill audit"
+        onBack
       />
 
       <div className="flex flex-wrap gap-3 mb-4">
@@ -96,8 +97,8 @@ export function MonthlyReportPage() {
               {!data.miscByCategory.length ? (
                 <p className="text-sm text-ink-muted">No approved misc purchases this month.</p>
               ) : (
-                <div className="panel overflow-hidden">
-                  <table className="data-table">
+                <div className="table-shell">
+                  <table className="data-table min-w-[28rem]">
                     <thead>
                       <tr>
                         <th>Category</th>
@@ -124,8 +125,8 @@ export function MonthlyReportPage() {
               {!data.poBills.length ? (
                 <p className="text-sm text-ink-muted">No PO-linked bills this month.</p>
               ) : (
-                <div className="panel overflow-hidden">
-                  <table className="data-table">
+                <div className="table-shell">
+                  <table className="data-table min-w-[48rem]">
                     <thead>
                       <tr>
                         <th>Bill</th>

@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { ArrowLeft, Download } from 'lucide-react';
+import { ArrowLeft } from 'lucide-react';
 import { toast } from 'sonner';
 import { api } from '@/lib/api';
 import { useAuthStore } from '@/stores/authStore';
@@ -22,7 +22,7 @@ import { SuccessScreen } from '@/components/SuccessScreen';
 import { DetailField, DetailFieldGrid } from '@/components/ui/DetailFields';
 import { forbiddenQueryOptions, isForbiddenError, useRedirectOnForbidden } from '@/lib/forbiddenRedirect';
 import { getRoleHomePath } from '@/lib/rolePaths';
-import { downloadExport } from '@/lib/downloadExport';
+import { PdfActions } from '@/components/PdfActions';
 import { useApprovalShortcuts } from '@/hooks/useApprovalShortcuts';
 
 export function WorkOrderDetailPage() {
@@ -36,7 +36,6 @@ export function WorkOrderDetailPage() {
   const [doneMessage, setDoneMessage] = useState('');
 
   const [progressQty, setProgressQty] = useState('');
-  const [exporting, setExporting] = useState(false);
 
   const accent =
     role === UserRole.COORDINATOR
@@ -226,18 +225,6 @@ export function WorkOrderDetailPage() {
 
   const remaining = wo.totalQuantity - wo.completedQuantity;
 
-  const exportPdf = async () => {
-    setExporting(true);
-    try {
-      await downloadExport(`/exports/work-orders/${wo.id}.pdf`, `${wo.woNumber}.pdf`);
-      toast.success('Work order exported');
-    } catch {
-      toast.error('Export failed');
-    } finally {
-      setExporting(false);
-    }
-  };
-
   return (
     <div className="px-4 pt-4 pb-6 max-w-lg mx-auto">
       <header className="flex items-center gap-3 mb-3">
@@ -252,10 +239,12 @@ export function WorkOrderDetailPage() {
           <h1 className="font-semibold">{wo.woNumber}</h1>
           <StatusBadge status={wo.status} className="mt-1" />
         </div>
-        <Button variant="ghost" size="sm" onClick={exportPdf} disabled={exporting}>
-          <Download className="h-4 w-4" />
-          PDF
-        </Button>
+        <PdfActions
+          path={`/exports/work-orders/${wo.id}.pdf`}
+          filename={`${wo.woNumber}.pdf`}
+          variant="ghost"
+          downloadLabel="PDF"
+        />
       </header>
 
       <Card className="mb-3">

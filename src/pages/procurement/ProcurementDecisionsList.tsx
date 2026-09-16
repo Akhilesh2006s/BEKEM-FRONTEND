@@ -1,6 +1,6 @@
 import { useNavigate } from 'react-router-dom';
 import { ArrowLeft, ChevronRight } from 'lucide-react';
-import { formatCurrency, formatDate, formatProjectLabel } from '@afios/shared';
+import { formatCurrency, formatDate, formatProjectLabel, UserRole } from '@afios/shared';
 import type { ProcurementDecisionListItemDto } from '@afios/shared';
 import { api } from '@/lib/api';
 import { StatusBadge } from '@/components/ui/StatusBadge';
@@ -8,6 +8,8 @@ import { EmptyState } from '@/components/EmptyState';
 import { PageHeader } from '@/components/layout/PageHeader';
 import { ListQueryBoundary } from '@/components/ListQueryBoundary';
 import { useListQuery, normalizeListData } from '@/hooks/useListQuery';
+import { CoordinatorDailyCapBanner } from '@/components/PmDailyCapBanner';
+import { useAuthStore } from '@/stores/authStore';
 
 interface ProcurementDecisionsListPageProps {
   basePath: string;
@@ -25,6 +27,7 @@ export function ProcurementDecisionsListPage({
   emptyDescription,
 }: ProcurementDecisionsListPageProps) {
   const navigate = useNavigate();
+  const role = useAuthStore((s) => s.user?.role);
 
   const { data: decisions, list } = useListQuery({
     queryKey: ['procurement-decisions', basePath],
@@ -39,17 +42,20 @@ export function ProcurementDecisionsListPage({
       <PageHeader
         title={title}
         subtitle={subtitle}
+        onBack
         action={
           <button
             type="button"
             onClick={() => navigate('/')}
             className="h-10 w-10 flex items-center justify-center rounded-xl hover:bg-gray-100"
-            aria-label="Go back"
+            aria-label="Go home"
           >
             <ArrowLeft className="h-5 w-5" />
           </button>
         }
       />
+
+      {role === UserRole.COORDINATOR && <CoordinatorDailyCapBanner />}
 
       <ListQueryBoundary
         isLoading={list.isLoading}

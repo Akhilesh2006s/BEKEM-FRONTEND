@@ -17,7 +17,7 @@ import { EmptyState } from '@/components/EmptyState';
 import { ListQueryBoundary } from '@/components/ListQueryBoundary';
 import { useListQuery, normalizeListData } from '@/hooks/useListQuery';
 import { StatusBadge } from '@/components/ui/StatusBadge';
-import { downloadExport } from '@/lib/downloadExport';
+import { PdfActions } from '@/components/PdfActions';
 import { ChevronRight } from 'lucide-react';
 import {
   formatIndentQueueStatus,
@@ -274,35 +274,26 @@ export function IssueMaterialPage() {
     issue.mutate();
   };
 
-  const downloadSlip = async () => {
-    if (!lastIssue) return;
-    try {
-      await downloadExport(
-        `/exports/material-issues/${lastIssue.id}.pdf`,
-        `${lastIssue.issueNumber}.pdf`
-      );
-      toast.success('Issue slip downloaded');
-    } catch {
-      toast.error('Could not download issue slip');
-    }
-  };
-
   return (
     <div className="page-container max-w-full">
       <PageHeader
         title="Issue to site"
         subtitle="Issue material against indent and generate issue slip"
+        onBack
       />
 
       {lastIssue && (
         <div className="panel p-3 mb-4 flex items-center justify-between gap-3">
           <div>
             <p className="font-semibold">{lastIssue.issueNumber}</p>
-            <p className="text-sm text-ink-secondary">Issue slip ready to print</p>
+            <p className="text-sm text-ink-secondary">Issue slip ready — view or download</p>
           </div>
-          <Button variant="secondary" onClick={downloadSlip}>
-            Download PDF
-          </Button>
+          <PdfActions
+            path={`/exports/material-issues/${lastIssue.id}.pdf`}
+            filename={`${lastIssue.issueNumber}.pdf`}
+            viewLabel="View"
+            downloadLabel="Download"
+          />
         </div>
       )}
 

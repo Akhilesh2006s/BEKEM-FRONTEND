@@ -184,7 +184,14 @@
   }
 
   .table-shell {
-    @apply overflow-x-auto border border-surface-border bg-white;
+    @apply min-w-0 max-w-full overflow-x-auto border border-surface-border bg-white;
+    -webkit-overflow-scrolling: touch;
+    scrollbar-gutter: stable;
+  }
+
+  .table-shell > .data-table,
+  .table-shell > table {
+    min-width: max(100%, 40rem);
   }
 
   /* Bound width so wide vendor-as-column tables scroll sideways instead of clipping. */

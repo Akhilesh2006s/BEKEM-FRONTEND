@@ -241,7 +241,7 @@ export function ExecutiveRfqListPage({ browseOnly = false }: ExecutiveRfqListPag
                           <StatusBadge status={rfq.status} />
                         </td>
                         <td className="text-right">
-                          {!browseOnly && rfq.status === 'FINALIZED' && rfq.poId ? (
+                          {rfq.poId ? (
                             <Button
                               variant="secondary"
                               size="sm"

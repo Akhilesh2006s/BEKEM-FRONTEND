@@ -1,14 +1,14 @@
 import { useEffect, useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { Download, Mail, MessageCircle } from 'lucide-react';
+import { Mail, MessageCircle } from 'lucide-react';
 import { UserRole, formatProjectLabel } from '@afios/shared';
 import { api } from '@/lib/api';
 import type { RfqDetailDto } from '@afios/shared';
 import { Button } from '@/components/ui/Button';
 import { PageHeader } from '@/components/layout/PageHeader';
 import { ListQueryBoundary } from '@/components/ListQueryBoundary';
-import { downloadExport } from '@/lib/downloadExport';
+import { PdfActions } from '@/components/PdfActions';
 import { useAuthStore } from '@/stores/authStore';
 import { toast } from 'sonner';
 import { hasSavedRfqVendors } from '@/lib/rfqVendorAssignments';
@@ -92,11 +92,6 @@ export function RfqDetailPage() {
     onSuccess: (url) => window.open(url, '_blank', 'noopener,noreferrer'),
   });
 
-  const downloadPdf = async () => {
-    if (!rfq) return;
-    await downloadExport(`/rfqs/${id}/pdf`, `${rfq.rfqNumber}.pdf`);
-  };
-
   return (
     <div className="page-container max-w-3xl">
       <PageHeader
@@ -106,13 +101,11 @@ export function RfqDetailPage() {
             ? formatProjectLabel({ code: rfq.projectCode, name: rfq.projectName })
             : 'Request for quotation'
         }
+        onBack
         action={
           rfq ? (
             <div className="flex flex-wrap gap-1.5">
-              <Button variant="secondary" size="sm" onClick={downloadPdf}>
-                <Download className="h-4 w-4" />
-                PDF
-              </Button>
+              <PdfActions path={`/rfqs/${id}/pdf`} filename={`${rfq.rfqNumber}.pdf`} />
               <Button
                 variant="secondary"
                 size="sm"

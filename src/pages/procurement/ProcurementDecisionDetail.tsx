@@ -24,7 +24,7 @@ import { StockComparisonTable } from '@/components/StockComparisonTable';
 import { StatusTimeline } from '@/components/StatusTimeline';
 import { ListQueryBoundary } from '@/components/ListQueryBoundary';
 import { CoordinatorDailyCapBanner } from '@/components/PmDailyCapBanner';
-import { approvalCapDayKey } from '@/lib/approvalCapDay';
+import { approvalCapDayKey, applyCoordinatorDailyCapPatch } from '@/lib/approvalCapDay';
 interface ProcurementDecisionDetailPageProps {
   listPath: string;
 }
@@ -59,6 +59,7 @@ export function ProcurementDecisionDetailPage({ listPath }: ProcurementDecisionD
       return res.data.data;
     },
     enabled: role === UserRole.COORDINATOR,
+    refetchInterval: 30_000,
   });
 
   const { data: projects } = useQuery({
@@ -139,6 +140,7 @@ export function ProcurementDecisionDetailPage({ listPath }: ProcurementDecisionD
       queryClient.invalidateQueries({ queryKey: ['procurement-decision', id] });
       queryClient.invalidateQueries({ queryKey: ['procurement-decisions'] });
       queryClient.invalidateQueries({ queryKey: ['dashboard-widgets'] });
+      queryClient.invalidateQueries({ queryKey: ['coordinator-daily-cap'] });
     },
     onError: (err: Error & { response?: { data?: { message?: string } } }) => {
       toast.error(err.response?.data?.message || 'Review failed');
@@ -151,6 +153,8 @@ export function ProcurementDecisionDetailPage({ listPath }: ProcurementDecisionD
         data: unknown;
         escalated?: boolean;
         message?: string;
+        dailyApprovedTotal?: number;
+        dailyCap?: number;
       }>(`/material-requests/${id}/coordinator-local-close`, { remark: closeRemark });
       return res.data;
     },
@@ -161,17 +165,17 @@ export function ProcurementDecisionDetailPage({ listPath }: ProcurementDecisionD
         toast.success('Indent locally approved by Coordinator');
       }
       setRemark('');
+      applyCoordinatorDailyCapPatch(queryClient, data);
       queryClient.invalidateQueries({ queryKey: ['procurement-decision', id] });
       queryClient.invalidateQueries({ queryKey: ['procurement-decisions'] });
-      queryClient.invalidateQueries({ queryKey: ['coordinator-daily-cap'] });
       queryClient.invalidateQueries({ queryKey: ['material-requests'] });
       queryClient.invalidateQueries({ queryKey: ['dashboard-widgets'] });
       navigate(listPath);
     },
-    onError: (err: Error & { response?: { data?: { message?: string; escalated?: boolean } } }) => {
+    onError: (err: Error & { response?: { data?: { message?: string; escalated?: boolean; dailyApprovedTotal?: number; dailyCap?: number } } }) => {
       toast.error(err.response?.data?.message || 'Could not locally approve');
       if (err.response?.data?.escalated) {
-        queryClient.invalidateQueries({ queryKey: ['coordinator-daily-cap'] });
+        applyCoordinatorDailyCapPatch(queryClient, err.response.data);
       }
     },
   });

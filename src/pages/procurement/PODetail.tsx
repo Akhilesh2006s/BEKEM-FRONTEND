@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { ArrowLeft, Download } from 'lucide-react';
+import { ArrowLeft } from 'lucide-react';
 import { api } from '@/lib/api';
 import { useAuthStore } from '@/stores/authStore';
 import {
@@ -25,7 +25,7 @@ import { SuccessScreen } from '@/components/SuccessScreen';
 import { QuotationComparisonTable } from '@/components/QuotationComparisonTable';
 import { forbiddenQueryOptions, isForbiddenError, useRedirectOnForbidden } from '@/lib/forbiddenRedirect';
 import { getRoleHomePath } from '@/lib/rolePaths';
-import { downloadExport } from '@/lib/downloadExport';
+import { PdfActions } from '@/components/PdfActions';
 import { cn } from '@/lib/utils';
 import { toast } from 'sonner';
 import { PoTrackingTimeline } from '@/components/PoTrackingTimeline';
@@ -82,7 +82,6 @@ export function PODetailPage() {
   const [showOverrideModal, setShowOverrideModal] = useState(false);
   const [done, setDone] = useState(false);
   const [doneMessage, setDoneMessage] = useState('');
-  const [exporting, setExporting] = useState(false);
 
   const { data: delegationStatus } = useQuery({
     queryKey: ['delegation-status'],
@@ -370,18 +369,6 @@ export function PODetailPage() {
       po.status as (typeof PO_PDF_AFTER_COORDINATOR_STATUSES)[number]
     );
 
-  const exportPdf = async () => {
-    setExporting(true);
-    try {
-      await downloadExport(`/exports/purchase-orders/${po.id}.pdf`, `${po.poNumber}.pdf`);
-      toast.success('PO exported');
-    } catch {
-      toast.error('Export failed');
-    } finally {
-      setExporting(false);
-    }
-  };
-
   return (
     <div className={cn('px-4 pt-4 pb-6 mx-auto', editing ? 'max-w-4xl' : 'max-w-lg')}>
       <header className="flex items-center gap-3 mb-3">
@@ -407,10 +394,12 @@ export function PODetailPage() {
           </div>
         </div>
         {canExportPdf && (
-          <Button variant="ghost" size="sm" onClick={exportPdf} disabled={exporting}>
-            <Download className="h-4 w-4" />
-            PDF
-          </Button>
+          <PdfActions
+            path={`/exports/purchase-orders/${po.id}.pdf`}
+            filename={`${po.poNumber}.pdf`}
+            variant="ghost"
+            downloadLabel="PDF"
+          />
         )}
       </header>
 
@@ -420,7 +409,7 @@ export function PODetailPage() {
 
       {role === UserRole.EXECUTIVE && !canExportPdf && (
         <p className="text-xs text-ink-secondary bg-surface-muted border border-surface-border rounded-lg px-3 py-2 mb-4">
-          PDF download unlocks after the coordinator approves this PO.
+          PDF view/download unlocks after the coordinator approves this PO.
         </p>
       )}
 

@@ -4,7 +4,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { ArrowLeft, Copy, Pencil } from 'lucide-react';
 import { toast } from 'sonner';
 import { api } from '@/lib/api';
-import { approvalCapDayKey } from '@/lib/approvalCapDay';
+import { approvalCapDayKey, applyCoordinatorDailyCapPatch } from '@/lib/approvalCapDay';
 import { forbiddenQueryOptions, isForbiddenError, useRedirectOnForbidden } from '@/lib/forbiddenRedirect';
 import { useAuthStore } from '@/stores/authStore';
 import {
@@ -232,6 +232,8 @@ export function RequestDetailPage() {
         data: MaterialRequestDto;
         escalated?: boolean;
         message?: string;
+        dailyApprovedTotal?: number;
+        dailyCap?: number;
       }>(`/material-requests/${id}/coordinator-local-close`, { remark });
       return res.data;
     },
@@ -246,15 +248,15 @@ export function RequestDetailPage() {
         );
       }
       setPmRemark('');
+      applyCoordinatorDailyCapPatch(queryClient, data);
       queryClient.invalidateQueries({ queryKey: ['material-request', id] });
-      queryClient.invalidateQueries({ queryKey: ['coordinator-daily-cap'] });
       queryClient.invalidateQueries({ queryKey: ['procurement-decisions'] });
     },
-    onError: (err: Error & { response?: { data?: { message?: string; escalated?: boolean } } }) => {
+    onError: (err: Error & { response?: { data?: { message?: string; escalated?: boolean; dailyApprovedTotal?: number; dailyCap?: number } } }) => {
       toast.error(err.response?.data?.message || 'Could not approve at Coordinator');
       if (err.response?.data?.escalated) {
+        applyCoordinatorDailyCapPatch(queryClient, err.response.data);
         queryClient.invalidateQueries({ queryKey: ['material-request', id] });
-        queryClient.invalidateQueries({ queryKey: ['coordinator-daily-cap'] });
       }
     },
   });

@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
-import { AlertTriangle, Download, Users, ClipboardCheck, Package, HardHat, FileBarChart2 } from 'lucide-react';
+import { AlertTriangle, Users, ClipboardCheck, Package, HardHat, FileBarChart2 } from 'lucide-react';
 import { getGreeting, formatCurrency, formatUnitCount } from '@afios/shared';
 import type { ChairmanKpiDto } from '@afios/shared';
 import { api } from '@/lib/api';
@@ -12,9 +12,7 @@ import { PaginationBar } from '@/components/ui/PaginationBar';
 import { TodayPanel } from '@/components/layout/TodayPanel';
 import { useTodayActions } from '@/hooks/useTodayActions';
 import { ListErrorState } from '@/components/ListErrorState';
-import { Button } from '@/components/ui/Button';
-import { downloadExport } from '@/lib/downloadExport';
-import { toast } from 'sonner';
+import { PdfActions } from '@/components/PdfActions';
 import { cn } from '@/lib/utils';
 import { fmtInrLimit, useApprovalLimits } from '@/hooks/useApprovalLimits';
 
@@ -31,21 +29,8 @@ export function ChairmanHomePage() {
   const navigate = useNavigate();
   const { data: today, isLoading: todayLoading } = useTodayActions();
   const { data: approvalLimits } = useApprovalLimits();
-  const [exportingBudget, setExportingBudget] = useState(false);
   const [projectPage, setProjectPage] = useState(1);
   const [supplierPage, setSupplierPage] = useState(1);
-
-  const exportBudgetPdf = async () => {
-    setExportingBudget(true);
-    try {
-      await downloadExport('/exports/budget-vs-actual.pdf', 'budget-vs-actual.pdf');
-      toast.success('Budget report exported');
-    } catch {
-      toast.error('Export failed');
-    } finally {
-      setExportingBudget(false);
-    }
-  };
 
   const { data: kpis, isLoading: kpisLoading, isError: kpisError, refetch: refetchKpis, isFetching: kpisFetching } = useQuery({
     queryKey: ['chairman-kpis', projectPage],
@@ -323,10 +308,12 @@ export function ChairmanHomePage() {
         <section className="mb-4 lg:mb-5">
           <div className="flex items-center justify-between mb-4">
             <h2 className="section-label">Budget vs actual</h2>
-            <Button variant="secondary" size="sm" onClick={exportBudgetPdf} disabled={exportingBudget}>
-              <Download className="h-4 w-4" />
-              {exportingBudget ? 'Exporting…' : 'Export PDF'}
-            </Button>
+            <PdfActions
+              path="/exports/budget-vs-actual.pdf"
+              filename="budget-vs-actual.pdf"
+              viewLabel="View"
+              downloadLabel="Download"
+            />
           </div>
           <div className="table-shell">
             <table className="data-table">

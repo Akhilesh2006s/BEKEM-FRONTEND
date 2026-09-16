@@ -29,11 +29,13 @@ function DailyCapBanner({
       const res = await api.get<{ data: DailyCapDto }>(path);
       return res.data.data;
     },
-    enabled: !cap,
+    // Always share/refetch the same cache key so the bar updates after local approve
+    // even when a parent also passes a `cap` prop.
+    initialData: cap,
     refetchInterval: 30_000,
   });
 
-  const daily = cap || fetched;
+  const daily = fetched || cap;
   if (!daily) return null;
 
   const { dailyApprovedTotal, dailyCap, remaining } = daily;
