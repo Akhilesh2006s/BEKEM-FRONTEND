@@ -23,6 +23,7 @@ import {
   formatIndentQueueStatus,
   formatIssuedFulfillmentLabel,
   isIndentFullyIssued,
+  resolveAllocationReviewStage,
 } from '@/components/MaterialIndentsTable';
 
 type IssueLineSource = {
@@ -114,37 +115,30 @@ export function IssueMaterialPage() {
     quantityIssued?: number;
     quantityRequested?: number;
     availableQty?: number;
-  }, indentStatus?: string) => {
+  }) => {
     const remainingRequest = Math.max(
       0,
       Number(item.remainingToIssueQty != null
         ? item.remainingToIssueQty
         : Number(item.quantityRequested || 0) - Number(item.quantityIssued || 0))
     );
-    let allocatedBalance = Math.max(
-      0,
-      Number(item.quantityAllocated || 0) - Number(item.quantityIssued || 0)
-    );
-    if (
-      allocatedBalance <= 0 &&
-      remainingRequest > 0 &&
-      ['ALLOCATED', 'PARTIALLY_ISSUED', 'ISSUED', 'MATERIAL_RECEIVED', 'CHAIRMAN_APPROVED'].includes(
-        indentStatus || ''
-      )
-    ) {
-      allocatedBalance = remainingRequest;
-    }
     const ready =
       item.availableToIssueQty != null
         ? Number(item.availableToIssueQty)
         : Math.min(remainingRequest, Number(item.availableQty || 0));
-    return Math.max(0, Math.min(remainingRequest, Math.max(ready, allocatedBalance)));
+    return Math.max(0, Math.min(remainingRequest, ready));
   };
+
+  const issueableIndents = (indents ?? []).filter((mr) => {
+    const stage = resolveAllocationReviewStage(mr);
+    if (stage === 'EXECUTIVE' || stage === 'PROJECT_MANAGER') return false;
+    return mr.status === 'ISSUED' || lineItems(mr).some((item) => maxIssuable(item) > 0);
+  });
 
   const issueLines = useMemo(() => {
     if (!selected) return [];
     return lineItems(selected).map((item) => {
-      const available = maxIssuable(item, selected.status);
+      const available = maxIssuable(item);
       const remainingRequest = Math.max(
         0,
         Number(item.remainingToIssueQty != null
@@ -202,7 +196,7 @@ export function IssueMaterialPage() {
     const next: Record<string, number> = {};
     lineItems(mr).forEach((item) => {
       const key = item.id || item.materialId;
-      next[key] = maxIssuable(item, mr.status);
+      next[key] = maxIssuable(item);
     });
     setIssuedQtyByLine(next);
     setIssuedAt(new Date().toISOString().slice(0, 10));
@@ -317,7 +311,7 @@ export function IssueMaterialPage() {
           isError={list.isError}
           onRetry={list.onRetry}
           retrying={list.retrying}
-          isEmpty={!indents?.length}
+          isEmpty={!issueableIndents.length}
           empty={
             <EmptyState
               title="Nothing ready to issue"
@@ -339,7 +333,7 @@ export function IssueMaterialPage() {
                 </tr>
               </thead>
               <tbody>
-                {(indents ?? []).map((mr) => (
+                {issueableIndents.map((mr) => (
                   <tr key={mr.id} className="cursor-pointer" onClick={() => selectIndent(mr)}>
                     <td className="cell-code whitespace-nowrap">{mr.indentNumber}</td>
                     <td className="cell-text">{mr.purpose || '—'}</td>
