@@ -37,8 +37,8 @@ export function LoginPage() {
   const navigate = useNavigate();
   const location = useLocation();
   const setAuth = useAuthStore((s) => s.setAuth);
-  const [email, setEmail] = useState('request@bekem.com');
-  const [password, setPassword] = useState(DEMO_PASSWORD);
+  const [email, setEmail] = useState(showDemoLogins ? 'request@bekem.com' : '');
+  const [password, setPassword] = useState(showDemoLogins ? DEMO_PASSWORD : '');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
 

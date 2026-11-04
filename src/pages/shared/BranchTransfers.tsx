@@ -31,7 +31,7 @@ function pageCopy(role: UserRole) {
   }
   return {
     title: 'Branch transfer approvals',
-    subtitle: 'Monitor Executive-approved transfers through dispatch and receipt / GRN',
+    subtitle: 'Review Executive-approved transfers before source dispatch',
     empty: 'No branch transfers pending Head Office review.',
     actionLabel: 'Awaiting decision or execution',
   };

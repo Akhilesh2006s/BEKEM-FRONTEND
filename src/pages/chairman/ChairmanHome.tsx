@@ -10,11 +10,11 @@ import { StatCard } from '@/components/ui/StatCard';
 import { DashboardSkeleton } from '@/components/ui/DashboardSkeleton';
 import { PaginationBar } from '@/components/ui/PaginationBar';
 import { TodayPanel } from '@/components/layout/TodayPanel';
+import { RoleDashboardActions } from '@/components/layout/RoleDashboardActions';
 import { useTodayActions } from '@/hooks/useTodayActions';
 import { ListErrorState } from '@/components/ListErrorState';
 import { PdfActions } from '@/components/PdfActions';
 import { cn } from '@/lib/utils';
-import { fmtInrLimit, useApprovalLimits } from '@/hooks/useApprovalLimits';
 
 function MiniBar({ value, max, tone }: { value: number; max: number; tone: string }) {
   const pct = max > 0 ? Math.min(100, Math.round((value / max) * 100)) : 0;
@@ -28,7 +28,6 @@ function MiniBar({ value, max, tone }: { value: number; max: number; tone: strin
 export function ChairmanHomePage() {
   const navigate = useNavigate();
   const { data: today, isLoading: todayLoading } = useTodayActions();
-  const { data: approvalLimits } = useApprovalLimits();
   const [projectPage, setProjectPage] = useState(1);
   const [supplierPage, setSupplierPage] = useState(1);
 
@@ -89,6 +88,12 @@ export function ChairmanHomePage() {
         subtitle="Every action across projects — POs, WOs, budget, stock, and delays"
       />
 
+      <RoleDashboardActions title="Approvals and oversight" description="Review decisions awaiting you and follow the wider procurement picture." actions={[
+        { label: 'Review material indents', description: 'Open indents escalated for Chairman approval', to: '/requests?tab=pending' },
+        { label: 'Approve purchase orders', description: 'Open the final approval queue', to: '/chairman/approve-pos' },
+        { label: 'GRNs on hold', description: 'Review escalated material receipts', to: '/chairman/grn-approvals' },
+        { label: 'Reports', description: 'Explore project and procurement reports', to: '/chairman/reports' },
+      ]} />
       <TodayPanel actions={today ?? []} loading={todayLoading} />
 
       {kpis?.approvalRules && (
@@ -119,7 +124,7 @@ export function ChairmanHomePage() {
           tone="chairman"
           sparkline={kpis?.sparklines.approvals}
           trend={{
-            label: `Above ${fmtInrLimit(approvalLimits?.poCoordinatorMaxInr ?? 5000)} awaiting Chairman`,
+            label: 'Purchase orders awaiting Chairman',
             positive: (kpis?.approvalsPending ?? 0) === 0,
           }}
           onClick={() => navigate('/chairman/approve-pos')}
@@ -210,7 +215,7 @@ export function ChairmanHomePage() {
               [
                 { label: 'PM (< ₹5k)', value: pipeline.pmPending, tone: 'bg-violet-500' },
                 { label: 'Coordinator (₹5–10k)', value: pipeline.coordinatorPending, tone: 'bg-teal-500' },
-                { label: 'Chairman (> ₹10k)', value: pipeline.chairmanPending, tone: 'bg-amber-500' },
+                { label: 'Chairman', value: pipeline.chairmanPending, tone: 'bg-amber-500' },
                 { label: 'Approved', value: pipeline.approved, tone: 'bg-emerald-500' },
               ] as const
             ).map((row) => (
@@ -229,8 +234,10 @@ export function ChairmanHomePage() {
       {kpis?.projectBreakdown && kpis.projectBreakdown.length > 0 && (
         <section className="mb-4 lg:mb-5">
           <h2 className="section-label mb-4">Project-wise overview (A–Z)</h2>
+          <p className="mb-2 text-xs text-ink-secondary sm:hidden">Scroll horizontally to view all project columns.</p>
           <div className="table-shell overflow-x-auto">
             <table className="data-table min-w-[900px]">
+              <caption className="sr-only">Project approvals, orders, and budget overview</caption>
               <thead>
                 <tr>
                   <th>Project</th>
@@ -317,6 +324,7 @@ export function ChairmanHomePage() {
           </div>
           <div className="table-shell">
             <table className="data-table">
+              <caption className="sr-only">Budget compared with actual deployment by project</caption>
               <thead>
                 <tr>
                   <th>Project</th>

@@ -4,7 +4,7 @@ export function CoordinatorVerifyPOsPage() {
   return (
     <POQueuePage
       title="Verify purchase orders"
-      subtitle="Up to coordinator limit: you approve. Above that: send to Chairman, or approve if Chairman is not on premises."
+      subtitle="Verify each purchase order and send it to the Chairman for final approval."
       queue="coordinator"
       detailPrefix="/coordinator"
       queryKey="po-queue-coordinator"

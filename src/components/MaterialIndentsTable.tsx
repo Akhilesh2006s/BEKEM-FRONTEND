@@ -6,7 +6,6 @@ import { StatusBadge, getStatusLabel } from '@/components/ui/StatusBadge';
 import { useAuthStore } from '@/stores/authStore';
 
 function roleLabel(role: UserRole | null | undefined) {
-  if (role === UserRole.SITE_INCHARGE) return 'Indent raiser';
   return role ? ROLE_LABELS[role] : '';
 }
 

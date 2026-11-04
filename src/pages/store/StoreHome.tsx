@@ -12,6 +12,7 @@ import { ListQueryBoundary } from '@/components/ListQueryBoundary';
 import { PageHeader } from '@/components/layout/PageHeader';
 import { StatCard } from '@/components/ui/StatCard';
 import { TodayPanel } from '@/components/layout/TodayPanel';
+import { RoleDashboardActions } from '@/components/layout/RoleDashboardActions';
 import { useTodayActions } from '@/hooks/useTodayActions';
 import { useListQuery, normalizeListData } from '@/hooks/useListQuery';
 import { AgeingBadge, daysSince } from '@/components/ui/AgeingBadge';
@@ -104,6 +105,11 @@ export function StoreHomePage() {
         }
       />
 
+      <RoleDashboardActions title="Store work" description="Review requests, record deliveries, and issue materials to the site." actions={[
+        { label: 'Review indents', description: 'Check stock and forward requests', to: '/store/requests' },
+        { label: 'Record material receipt', description: 'Open material GRN', to: '/store/grn' },
+        { label: 'Issue to site', description: 'Record material issued against an indent', to: '/store/issue' },
+      ]} />
       <TodayPanel actions={today ?? []} loading={todayLoading} />
 
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-2.5 section-gap">
@@ -138,6 +144,7 @@ export function StoreHomePage() {
         <div className="relative mb-3">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-ink-muted" />
           <Input
+            aria-label="Search existing stock"
             value={stockSearch}
             onChange={(e) => setStockSearch(e.target.value)}
             placeholder="Search item code, description, grade…"
@@ -153,13 +160,14 @@ export function StoreHomePage() {
           isEmpty={!!site?.id && !(filteredStock?.length)}
           empty={
             <EmptyState
-              title="No stock on hand"
-              description="Stock levels will appear once inventory is recorded for this site."
+              title={stockSearch.trim() ? 'No matching stock' : 'No stock on hand'}
+              description={stockSearch.trim() ? 'Try another item code, description, or grade.' : 'Stock levels will appear once inventory is recorded for this site.'}
             />
           }
         >
         <div className="table-shell">
           <table className="data-table">
+            <caption className="sr-only">Available and reserved stock for this site</caption>
             <thead>
               <tr>
                 <th>Code</th>
@@ -187,7 +195,7 @@ export function StoreHomePage() {
 
       <div>
         <div className="flex items-center justify-between mb-4">
-          <h2 className="text-sm font-semibold text-ink">My indents</h2>
+          <div><h2 className="text-sm font-semibold text-ink">My indents</h2><p className="mt-1 text-xs text-ink-secondary">Open an indent to review its next step.</p></div>
           <button
             onClick={() => navigate('/store/stock')}
             className="text-sm font-medium text-bekem-navy hover:underline"
@@ -212,9 +220,10 @@ export function StoreHomePage() {
         >
           <div className="space-y-2">
             {(pendingRequests ?? []).map((r) => (
-              <div
+              <button
+                type="button"
                 key={r.id}
-                className="data-row"
+                className="data-row w-full text-left focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-bekem-accent"
                 onClick={() =>
                   navigate(
                     r.status === 'PENDING_STORE' && !isInAllocationReview(r)
@@ -233,7 +242,7 @@ export function StoreHomePage() {
                   <AgeingBadge days={daysSince(r.createdAt)} />
                   <ChevronRight className="h-4 w-4 text-ink-muted shrink-0" />
                 </div>
-              </div>
+              </button>
             ))}
           </div>
         </ListQueryBoundary>

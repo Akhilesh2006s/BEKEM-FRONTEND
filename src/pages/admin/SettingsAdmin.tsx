@@ -9,10 +9,6 @@ import { Button } from '@/components/ui/Button';
 import { Input } from '@/components/ui/Input';
 import { ListQueryBoundary } from '@/components/ListQueryBoundary';
 
-function fmtInr(n: number) {
-  return `₹${n.toLocaleString('en-IN')}`;
-}
-
 export function SettingsAdminPage() {
   const queryClient = useQueryClient();
   const [draft, setDraft] = useState<OrgSettingsDto | null>(null);
@@ -74,11 +70,12 @@ export function SettingsAdminPage() {
         {settings && (
           <div className="space-y-3">
             <section className="panel p-3 space-y-3">
-              <h2 className="text-sm font-semibold text-ink">PO approval limits (INR)</h2>
+              <h2 className="text-sm font-semibold text-ink">Approval settings (INR)</h2>
               <p className="text-xs text-ink-muted">{settings.approvalRoutingNote}</p>
+              <p className="text-xs text-ink-muted">Legacy PO limit settings are retained for reference and do not change the required Coordinator and Chairman approvals.</p>
               <div className="grid sm:grid-cols-2 lg:grid-cols-4 gap-3">
                 <div>
-                  <p className="text-[11px] font-medium text-ink-muted mb-1">PM final approval up to</p>
+                  <p className="text-[11px] font-medium text-ink-muted mb-1">Legacy PM PO limit</p>
                   <Input
                     type="number"
                     min={0}
@@ -92,7 +89,7 @@ export function SettingsAdminPage() {
                   />
                 </div>
                 <div>
-                  <p className="text-[11px] font-medium text-ink-muted mb-1">Coordinator final up to</p>
+                  <p className="text-[11px] font-medium text-ink-muted mb-1">Legacy Coordinator PO limit</p>
                   <Input
                     type="number"
                     min={0}
@@ -208,8 +205,7 @@ export function SettingsAdminPage() {
                   <strong>Coordinator</strong> — executive actions plus modify, correct, approve
                 </li>
                 <li>
-                  <strong>Chairman / MD</strong> — view all, final approval above{' '}
-                  {fmtInr(settings.poCoordinatorMaxInr)}
+                  <strong>Chairman / MD</strong> — view all, final approval of every purchase order
                 </li>
               </ul>
             </section>

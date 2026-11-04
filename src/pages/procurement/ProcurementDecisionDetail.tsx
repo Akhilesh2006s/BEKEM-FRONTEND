@@ -223,7 +223,7 @@ export function ProcurementDecisionDetailPage({ listPath }: ProcurementDecisionD
     );
   const coordinatorWithinDailyCap =
     canCoordinatorLocalClose &&
-    (coordinatorCap ? (decision?.estimatedValue || 0) <= coordinatorCap.remaining : true);
+    (Boolean(decision?.chairmanIndentApprovedAt) || (coordinatorCap ? (decision?.estimatedValue || 0) <= coordinatorCap.remaining : true));
   const requireRemark = () => {
     if (!remark.trim()) {
       toast.error('Remark is required');
@@ -457,7 +457,9 @@ export function ProcurementDecisionDetailPage({ listPath }: ProcurementDecisionD
                 <CoordinatorDailyCapBanner cap={coordinatorCap} />
                 <p className="text-sm font-semibold text-ink">Coordinator local approval</p>
                 <p className="text-xs text-ink-secondary">
-                  {coordinatorWithinDailyCap
+                  {decision?.chairmanIndentApprovedAt
+                    ? 'Chairman approved this indent. Continue with stock issue or procurement.'
+                    : coordinatorWithinDailyCap
                     ? `Within the ₹${(coordinatorCap?.dailyCap ?? 10000).toLocaleString('en-IN')}/day Coordinator limit — you can locally approve and close. No need to escalate to MD / Chairman.`
                     : `This indent exceeds the remaining Coordinator daily cap (₹${(coordinatorCap?.dailyCap ?? 10000).toLocaleString('en-IN')}/day) — it will escalate to MD / Chairman.`}
                 </p>

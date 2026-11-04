@@ -65,9 +65,6 @@ const StorePendingRequestsPage = lazy(() =>
 const GrnReceivePage = lazy(() =>
   import('@/pages/store/GrnReceive').then((m) => ({ default: m.GrnReceivePage }))
 );
-const StoreMaterialGrnPage = lazy(() =>
-  import('@/pages/store/StoreMaterialGrn').then((m) => ({ default: m.StoreMaterialGrnPage }))
-);
 const GrnApprovalsPage = lazy(() =>
   import('@/pages/store/GrnApprovals').then((m) => ({ default: m.GrnApprovalsPage }))
 );
@@ -867,7 +864,7 @@ export default function App() {
 
                   <RoleGuard roles={[UserRole.STORE_INCHARGE]}>
 
-                    <StoreMaterialGrnPage />
+                    <GrnReceivePage />
 
                   </RoleGuard>
 

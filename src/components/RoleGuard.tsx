@@ -5,7 +5,6 @@ import { useAuthStore } from '@/stores/authStore';
 import { PERMISSION_MATRIX, UserRole, type Capability } from '@afios/shared';
 
 import { getRoleHomePath } from '@/lib/rolePaths';
-import { markAccessDenied } from '@/lib/accessDenied';
 
 interface RoleGuardProps {
   children: React.ReactNode;
@@ -28,7 +27,6 @@ export function RoleGuard({ children, capability, capabilities, match = 'any', r
   const home = getRoleHomePath(role);
 
   const deny = () => {
-    markAccessDenied();
     return <Navigate to={home} replace state={{ from: location.pathname }} />;
   };
 

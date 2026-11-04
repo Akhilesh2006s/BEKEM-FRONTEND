@@ -18,7 +18,6 @@ import { Button } from '@/components/ui/Button';
 import { StatusBadge } from '@/components/ui/StatusBadge';
 import { PoEmailStatusChip } from '@/components/PoEmailStatusChip';
 import { StatusTimeline } from '@/components/StatusTimeline';
-import { OverrideRemarkModal } from '@/components/OverrideRemarkModal';
 import { Textarea } from '@/components/ui/Input';
 import { PoEditForm } from '@/components/PoEditForm';
 import { SuccessScreen } from '@/components/SuccessScreen';
@@ -33,7 +32,6 @@ import { ProcurementRefField } from '@/components/ProcurementRefField';
 import { FulfillmentStatusChip } from '@/components/FulfillmentStatusChip';
 import { DetailField, DetailFieldGrid } from '@/components/ui/DetailFields';
 import { useApprovalShortcuts } from '@/hooks/useApprovalShortcuts';
-import { useApprovalLimits } from '@/hooks/useApprovalLimits';
 import type { DelegationStatusDto, PoGrnsDto } from '@afios/shared';
 
 const PO_PDF_AFTER_COORDINATOR_STATUSES = ['APPROVED'] as const;
@@ -76,10 +74,8 @@ export function PODetailPage() {
   const queryClient = useQueryClient();
   const user = useAuthStore((s) => s.user)!;
   const role = user.role as UserRole;
-  const { data: approvalLimits } = useApprovalLimits();
   const [note, setNote] = useState('');
   const [editing, setEditing] = useState(false);
-  const [showOverrideModal, setShowOverrideModal] = useState(false);
   const [done, setDone] = useState(false);
   const [doneMessage, setDoneMessage] = useState('');
 
@@ -142,9 +138,7 @@ export function PODetailPage() {
         id,
       ]);
       if (previous && payload.action === 'APPROVE') {
-        const amount = Number(previous.data.amount || 0);
-        const threshold = approvalLimits?.poCoordinatorMaxInr ?? 5000;
-        const nextStatus = amount > threshold ? 'CHAIRMAN_PENDING' : 'APPROVED';
+        const nextStatus = 'CHAIRMAN_PENDING';
         queryClient.setQueryData(['purchase-order', id], {
           ...previous,
           data: { ...previous.data, status: nextStatus },
@@ -210,24 +204,6 @@ export function PODetailPage() {
     onSuccess: () => {
       setDoneMessage('Purchase order approved');
       setDone(true);
-    },
-    onSettled: () => {
-      queryClient.invalidateQueries({ queryKey: ['purchase-order', id] });
-      queryClient.invalidateQueries({ queryKey: ['purchase-orders-browse'] });
-      queryClient.invalidateQueries({ queryKey: ['purchase-orders'] });
-    },
-  });
-
-  const approveOverride = useMutation({
-    mutationFn: (remark: string) =>
-      api.post(`/purchase-orders/${id}/approve-override`, { remark }),
-    onSuccess: () => {
-      setShowOverrideModal(false);
-      setDoneMessage('Approved in Chairman\'s absence');
-      setDone(true);
-    },
-    onError: (e: Error & { response?: { data?: { message?: string } } }) => {
-      toast.error(e.response?.data?.message || 'Override approval failed');
     },
     onSettled: () => {
       queryClient.invalidateQueries({ queryKey: ['purchase-order', id] });
@@ -331,10 +307,7 @@ export function PODetailPage() {
 
   const po = data.data;
   const nextStep = getNextStepInfo(po);
-  const chairmanThreshold = approvalLimits?.poCoordinatorMaxInr ?? 5000;
-  const needsChairmanBand = po.amount > chairmanThreshold;
-  const chairmanHasFinalApproved =
-    po.status === 'APPROVED' && (needsChairmanBand || !!po.approvedAsChairmanOverride);
+  const chairmanHasFinalApproved = po.status === 'APPROVED';
   const isCoordinator =
     role === UserRole.COORDINATOR &&
     (po.status === 'PENDING_REVIEW' ||
@@ -350,10 +323,6 @@ export function PODetailPage() {
       ['PENDING_APPROVAL', 'CHAIRMAN_PENDING', 'APPROVED'].includes(po.status));
   const canChairmanEditException =
     role === UserRole.CHAIRMAN && po.status === 'APPROVED';
-  const isCoordinatorOverride =
-    role === UserRole.COORDINATOR &&
-    needsChairmanBand &&
-    ['PENDING_REVIEW', 'COORDINATOR_PENDING', 'CHAIRMAN_PENDING'].includes(po.status);
   const isPmApprover = false;
   const canFinalApprove =
     (po.status === 'PENDING_APPROVAL' || po.status === 'CHAIRMAN_PENDING') &&
@@ -632,7 +601,7 @@ export function PODetailPage() {
         </div>
       )}
 
-      {(isCoordinator || isCoordinatorOverride || canFinalApprove || isPmApprover || isCoordinatorApproved || canChairmanEditException) && (
+      {(isCoordinator || canFinalApprove || isPmApprover || isCoordinatorApproved || canChairmanEditException) && (
         <div className="mt-6 space-y-3">
           {grnData?.grns?.length ? (
             <p className="text-xs text-amber-800 bg-amber-50 border border-amber-200 rounded-lg px-3 py-2">
@@ -703,24 +672,8 @@ export function PODetailPage() {
                 disabled={verify.isPending}
                 onClick={() => verify.mutate({ action: 'APPROVE' })}
               >
-                {needsChairmanBand ? 'Verify & send to Chairman' : 'Verify & approve PO'}
+                Verify & send to Chairman
               </Button>
-              {needsChairmanBand && (
-                <>
-                  <p className="text-xs text-amber-800 bg-amber-50 border border-amber-200 rounded-lg px-3 py-2">
-                    Chairman not on premises? Approve here with a mandatory written reason (min 30
-                    characters) — permanently audited.
-                  </p>
-                  <Button
-                    variant="secondary"
-                    size="lg"
-                    className="border-amber-300 text-amber-900"
-                    onClick={() => setShowOverrideModal(true)}
-                  >
-                    Approve (Chairman unavailable)
-                  </Button>
-                </>
-              )}
               <Button
                 variant="secondary"
                 size="lg"
@@ -736,22 +689,6 @@ export function PODetailPage() {
                 onClick={() => verify.mutate({ action: 'RETURN' })}
               >
                 Return to Executive
-              </Button>
-            </div>
-          )}
-          {isCoordinatorOverride && po.status === 'CHAIRMAN_PENDING' && (
-            <div className="flex flex-col gap-2 border-t border-surface-border pt-3">
-              <p className="text-xs text-amber-800 bg-amber-50 border border-amber-200 rounded-lg px-3 py-2">
-                PO is with Chairman. If Chairman is unavailable, approve with a mandatory remark
-                (min 30 characters) — permanently audited.
-              </p>
-              <Button
-                variant="secondary"
-                size="lg"
-                className="border-amber-300 text-amber-900"
-                onClick={() => setShowOverrideModal(true)}
-              >
-                Approve (Chairman unavailable)
               </Button>
             </div>
           )}
@@ -779,12 +716,6 @@ export function PODetailPage() {
         </div>
       )}
 
-      <OverrideRemarkModal
-        open={showOverrideModal}
-        onClose={() => setShowOverrideModal(false)}
-        pending={approveOverride.isPending}
-        onSubmit={(remark) => approveOverride.mutate(remark)}
-      />
     </div>
   );
 }

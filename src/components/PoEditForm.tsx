@@ -167,7 +167,9 @@ export function PoEditForm({ po, onCancel, onSaved }: PoEditFormProps) {
       return res.data;
     },
     onSuccess: () => {
-      toast.success('PO updated');
+      toast.success(['CHAIRMAN_PENDING', 'PENDING_APPROVAL', 'APPROVED'].includes(po.status)
+        ? 'PO updated and returned to Coordinator for verification'
+        : 'PO updated');
       setShowGrnModal(false);
       onSaved();
     },

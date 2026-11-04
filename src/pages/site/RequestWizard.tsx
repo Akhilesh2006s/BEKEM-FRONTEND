@@ -149,8 +149,7 @@ export function RequestWizardPage() {
   );
 
   const runningTotal = useMemo(() => computeIndentRunningTotal(lines), [lines]);
-  // Below ₹5,000: enforce cap silently — do not display unit/line costs on site/store UI.
-  const showPricing = false;
+  const showPricing = indentRequestType === 'BELOW_5000';
   const enforceBelowCap = indentRequestType === 'BELOW_5000';
   const atCap = enforceBelowCap && runningTotal >= INDENT_VALUE_CAP_INR;
   const canAddMaterials = hasRequesterName && hasIndentCategory && Boolean(indentRequestType) && !atCap;
@@ -616,7 +615,7 @@ export function RequestWizardPage() {
           </select>
           {indentRequestType === 'BELOW_5000' && (
             <p className="text-[11px] text-ink-secondary">
-              Below ₹5,000 — total must stay under the limit. Pricing is hidden on this screen.
+              Below ₹5,000 — unit prices and the running total are shown below.
             </p>
           )}
           {indentRequestType === 'ABOVE_5000' && (

@@ -24,6 +24,7 @@ import { ListQueryBoundary } from '@/components/ListQueryBoundary';
 import { useListQuery, normalizeListData } from '@/hooks/useListQuery';
 import { cn } from '@/lib/utils';
 import { DetailField, DetailFieldGrid } from '@/components/ui/DetailFields';
+import { useAuthStore } from '@/stores/authStore';
 
 type ReceiveType = 'PARTIAL' | 'FULL';
 type AttachmentCategory = 'INVOICE' | 'CHALLAN' | 'PHOTO';
@@ -155,7 +156,8 @@ function hasAttachmentCategory(attachments: GrnAttachment[], category: Attachmen
 }
 
 export function GrnReceivePage() {
-  const accent = ROLE_COLORS[UserRole.COORDINATOR].primary;
+  const role = useAuthStore((state) => state.user?.role);
+  const accent = ROLE_COLORS[role === UserRole.STORE_INCHARGE ? UserRole.STORE_INCHARGE : UserRole.COORDINATOR].primary;
   const [searchParams, setSearchParams] = useSearchParams();
   const [selectedPo, setSelectedPo] = useState<PurchaseOrderDto | null>(null);
   const [selectedGrnId, setSelectedGrnId] = useState<string | null>(null);

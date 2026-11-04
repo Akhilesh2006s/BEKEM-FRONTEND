@@ -1,5 +1,5 @@
 import { useMemo } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import {
   Package,
   ChevronRight,
@@ -8,6 +8,8 @@ import {
   CheckCircle2,
   ClipboardCheck,
   FileBarChart2,
+  FilePlus2,
+  ListChecks,
 } from 'lucide-react';
 import { api } from '@/lib/api';
 import { formatDate, getGreeting } from '@afios/shared';
@@ -61,8 +63,18 @@ export function SiteHomePage() {
       <PageHeader
         eyebrow={getGreeting()}
         title="Dashboard"
-        subtitle="Site material requests and indents"
+        subtitle="Create a material request and follow it through to delivery."
       />
+
+      <section aria-label="Quick actions" className="section-gap rounded-lg border border-bekem-accent/20 bg-bekem-accent-soft/40 p-4 sm:p-5">
+        <p className="text-xs font-semibold uppercase tracking-wider text-bekem-accent">Your site requests</p>
+        <h2 className="mt-1 text-lg font-bold text-ink">What would you like to do?</h2>
+        <p className="mt-1 text-sm text-ink-secondary">Raise a new indent for materials or check the progress of an existing one.</p>
+        <div className="mt-4 flex flex-col gap-2 sm:flex-row">
+          <Link to="/request/new" className="inline-flex min-h-[44px] items-center justify-center gap-2 rounded-lg bg-bekem-accent px-4 py-2.5 text-sm font-semibold text-white hover:bg-bekem-accent-hover focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-bekem-accent"><FilePlus2 className="h-4 w-4" aria-hidden="true" /> New indent</Link>
+          <Link to="/incidents" className="inline-flex min-h-[44px] items-center justify-center gap-2 rounded-lg border border-bekem-accent/40 bg-white px-4 py-2.5 text-sm font-semibold text-bekem-accent hover:bg-bekem-accent-soft focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-bekem-accent"><ListChecks className="h-4 w-4" aria-hidden="true" /> My indents</Link>
+        </div>
+      </section>
 
       <TodayPanel actions={todayActions} loading={todayLoading} />
 
@@ -111,31 +123,33 @@ export function SiteHomePage() {
         </section>
       )}
 
-      <div className="grid grid-cols-2 sm:grid-cols-5 gap-2.5 section-gap">
+      <section aria-labelledby="request-status-heading" className="section-gap">
+      <div className="mb-2"><h2 id="request-status-heading" className="text-sm font-semibold text-ink">Request status</h2><p className="mt-1 text-xs text-ink-secondary">Select a status to see the matching indents.</p></div>
+      <div className="grid grid-cols-2 sm:grid-cols-5 gap-2.5">
         <ActionCard
           title="Pending"
-          count={pending}
+          count={requestsList.isError ? '—' : requestsList.isLoading ? '…' : pending}
           icon={Clock}
           tone="warning"
           onClick={() => navigate('/incidents?tab=pending')}
         />
         <ActionCard
           title="Completed"
-          count={completed}
+          count={requestsList.isError ? '—' : requestsList.isLoading ? '…' : completed}
           icon={CheckCircle2}
           tone="success"
           onClick={() => navigate('/incidents?tab=completed')}
         />
         <ActionCard
           title="Rejected"
-          count={rejected}
+          count={requestsList.isError ? '—' : requestsList.isLoading ? '…' : rejected}
           icon={XCircle}
           tone="danger"
           onClick={() => navigate('/incidents?tab=rejected')}
         />
         <ActionCard
           title="All"
-          count={requests?.length || 0}
+          count={requestsList.isError ? '—' : requestsList.isLoading ? '…' : requests?.length || 0}
           icon={Package}
           tone="info"
           onClick={() => navigate('/incidents?tab=all')}
@@ -148,6 +162,9 @@ export function SiteHomePage() {
           onClick={() => navigate('/site/reports')}
         />
       </div>
+      {requestsList.isLoading && <p className="mt-2 text-sm text-ink-secondary" role="status">Loading request counts…</p>}
+      {requestsList.isError && <p className="mt-2 text-sm text-red-700" role="alert">Request counts could not be loaded. <button type="button" className="min-h-[44px] font-semibold underline focus-visible:outline focus-visible:outline-2" onClick={requestsList.onRetry}>Try again</button></p>}
+      </section>
 
       <section>
         <div className="flex items-center justify-between mb-4">
@@ -169,13 +186,22 @@ export function SiteHomePage() {
           skeletonRows={4}
           empty={
             <EmptyState
-              celebrate
-              title="No pending requests"
-              description="Everything is completed. Create a new indent when you need materials."
+              title="No recent requests"
+              description="When you create an indent, it will appear here."
             />
           }
         >
-          <div className="table-shell">
+          <>
+          <ul className="space-y-2 sm:hidden" aria-label="Recent requests">
+            {recent.map((r) => (
+              <li key={r.id} className="rounded-lg border border-surface-border bg-white p-3">
+                <Link to={`/requests/${r.id}`} className="inline-flex min-h-[44px] items-center font-mono text-sm font-semibold text-bekem-accent underline underline-offset-2 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-bekem-accent">{r.indentNumber}</Link>
+                <p className="text-sm text-ink">{r.purpose || 'No purpose provided'}</p>
+                <div className="mt-2 flex flex-wrap items-center justify-between gap-2"><span className="text-xs text-ink-secondary">{formatDate(r.createdAt)}</span><StatusBadge status={r.status} label={formatIndentQueueStatus(r.status, r.pendingWith, r.approverNames, r.poStatus, r.pmProceededAllocation, r.allocationReviewStage, r.allocatedByRole)} /></div>
+              </li>
+            ))}
+          </ul>
+          <div className="table-shell hidden sm:block">
             <table className="data-table">
               <thead>
                 <tr>
@@ -193,7 +219,7 @@ export function SiteHomePage() {
                     className="cursor-pointer"
                     onClick={() => navigate(`/requests/${r.id}`)}
                   >
-                    <td className="cell-code whitespace-nowrap">{r.indentNumber}</td>
+                    <td className="cell-code whitespace-nowrap"><Link to={`/requests/${r.id}`} onClick={(event) => event.stopPropagation()} className="inline-flex min-h-[44px] items-center underline underline-offset-2 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-bekem-accent">{r.indentNumber}</Link></td>
                     <td className="whitespace-nowrap">{formatDate(r.createdAt)}</td>
                     <td className="cell-text max-w-[14rem]">{r.purpose || '—'}</td>
                     <td>
@@ -218,6 +244,7 @@ export function SiteHomePage() {
               </tbody>
             </table>
           </div>
+          </>
         </ListQueryBoundary>
       </section>
     </div>

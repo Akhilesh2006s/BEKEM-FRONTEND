@@ -72,6 +72,7 @@ interface IssueAttachment {
   name: string;
   fileType: string;
   category?: string;
+  dataBase64?: string;
 }
 
 const REASONS = Object.entries(ISSUE_REASON_LABELS) as [IssueReason, string][];
@@ -91,6 +92,7 @@ export function IssueMaterialPage() {
   const [issuedQtyByLine, setIssuedQtyByLine] = useState<Record<string, number>>({});
   const [attachments, setAttachments] = useState<IssueAttachment[]>([]);
   const [ackAttachments, setAckAttachments] = useState<IssueAttachment[]>([]);
+  const [readingFiles, setReadingFiles] = useState(0);
   const [lastIssue, setLastIssue] = useState<{ id: string; issueNumber: string } | null>(null);
   const docRef = useRef<HTMLInputElement>(null);
   const ackRef = useRef<HTMLInputElement>(null);
@@ -169,18 +171,30 @@ export function IssueMaterialPage() {
     });
   }, [selected, issuedQtyByLine]);
 
-  const pickFiles = (
+  const pickFiles = async (
     files: FileList | null,
     which: 'docs' | 'ack'
   ) => {
     if (!files?.length) return;
-    const added = Array.from(files).map((f) => ({
-      name: f.name,
-      fileType: f.type || 'application/octet-stream',
-      category: which === 'ack' ? 'CONTRACTOR_ACK' : 'ISSUE_SLIP',
-    }));
-    if (which === 'ack') setAckAttachments((prev) => [...prev, ...added]);
-    else setAttachments((prev) => [...prev, ...added]);
+    setReadingFiles((count) => count + 1);
+    try {
+      const added = await Promise.all(Array.from(files).map(async (f) => {
+        if (!f.size || f.size > 12 * 1024 * 1024) throw new Error('Files must be between 1 byte and 12 MB');
+        const dataBase64 = await new Promise<string>((resolve, reject) => {
+          const reader = new FileReader();
+          reader.onerror = () => reject(new Error('Could not read the selected file'));
+          reader.onload = () => resolve(String(reader.result).split(',')[1] || '');
+          reader.readAsDataURL(f);
+        });
+        return { name: f.name, fileType: f.type || 'application/octet-stream', category: which === 'ack' ? 'CONTRACTOR_ACK' : 'ISSUE_SLIP', dataBase64 };
+      }));
+      if (which === 'ack') setAckAttachments((prev) => [...prev, ...added]);
+      else setAttachments((prev) => [...prev, ...added]);
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : 'Could not read the selected file');
+    } finally {
+      setReadingFiles((count) => Math.max(0, count - 1));
+    }
   };
 
   const selectIndent = (mr: MaterialRequestDto) => {
@@ -603,8 +617,8 @@ export function IssueMaterialPage() {
               <Button variant="secondary" onClick={() => setSelected(null)}>
                 Back
               </Button>
-              <Button variant="primary" disabled={issue.isPending} onClick={submitIssue}>
-                Issue material
+              <Button variant="primary" disabled={issue.isPending || readingFiles > 0} onClick={submitIssue}>
+                {readingFiles > 0 ? 'Preparing attachments…' : 'Issue material'}
               </Button>
             </div>
           </div>

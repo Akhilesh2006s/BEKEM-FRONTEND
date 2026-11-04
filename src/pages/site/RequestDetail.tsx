@@ -226,6 +226,19 @@ export function RequestDetailPage() {
     },
   });
 
+  const chairmanApproveIndent = useMutation({
+    mutationFn: async (remark: string) => api.post(`/material-requests/${id}/chairman-approve-indent`, { remark }),
+    onSuccess: () => {
+      toast.success('Indent approved and returned to Coordinator');
+      setPmRemark('');
+      queryClient.invalidateQueries({ queryKey: ['material-request', id] });
+      queryClient.invalidateQueries({ queryKey: ['material-requests'] });
+    },
+    onError: (err: Error & { response?: { data?: { message?: string } } }) => {
+      toast.error(err.response?.data?.message || 'Could not approve indent');
+    },
+  });
+
   const coordinatorLocalClose = useMutation({
     mutationFn: async (remark: string) => {
       const res = await api.post<{
@@ -352,8 +365,8 @@ export function RequestDetailPage() {
           : 'current owner';
   const proceedAllocationHint = storeReadyToAllocate
     ? request?.status === 'ALLOCATED'
-      ? 'Stock is available and reserved. Proceed with Allocation to allocate this indent to the indent raiser.'
-      : 'Stock received. Proceed with Allocation to allocate this indent to the indent raiser.'
+      ? 'Stock is reserved. Open Issue Material to record the recipient and issue the stock.'
+      : 'Stock received. Open Issue Material to record the recipient and issue the stock.'
     : allocationStage === UserRole.EXECUTIVE
       ? 'PO is approved. Proceed with Allocation to send this indent to the Project Manager.'
       : allocationStage === UserRole.PROJECT_MANAGER
@@ -437,7 +450,7 @@ export function RequestDetailPage() {
    *  Indents above the PM per-indent approval limit also go to HO even when stock is available. */
   const showForwardToHo = Boolean(
     pmCanActOnIndent &&
-      remainingAfterTakes > 0 &&
+      (remainingAfterTakes > 0 || exceedsPmApprovalLevel) &&
       totalTaking === 0 &&
       (!stockAvailable || exceedsPmApprovalLevel)
   );
@@ -529,9 +542,9 @@ export function RequestDetailPage() {
     !request.escalatedToChairman;
   const coordinatorCanCloseWithinCap =
     canCoordinatorLocalClose &&
-    (coordinatorCap
+    (request.chairmanIndentApprovedAt || (coordinatorCap
       ? (request.estimatedValue || 0) <= coordinatorCap.remaining
-      : true);
+      : true));
   const awaitingDecision = ['PENDING_HO', 'PENDING_EXECUTIVE_DECISION'].includes(request.status);
   const canConfirmReceipt = role === UserRole.SITE_INCHARGE && request.status === 'ISSUED';
   const hidePricing = hideIndentPricingForRole(role, request.indentRequestType);
@@ -903,6 +916,16 @@ export function RequestDetailPage() {
                     ))}
                   </div>
                 </div>
+                {issue.attachments?.filter((attachment) => attachment.url).map((attachment) => (
+                  <button key={`${issue.id}-${attachment.url}`} type="button" className="text-sm text-bekem-accent underline" onClick={async () => {
+                    try {
+                      const response = await api.get(attachment.url!.replace(/^\/api/, ''), { responseType: 'blob' });
+                      const url = URL.createObjectURL(response.data);
+                      const link = document.createElement('a'); link.href = url; link.download = attachment.name; link.click();
+                      window.setTimeout(() => URL.revokeObjectURL(url), 60000);
+                    } catch { toast.error('Could not download the attachment'); }
+                  }}>{attachment.category === 'CONTRACTOR_ACK' ? 'Contractor acknowledgement' : 'Attachment'}: {attachment.name}</button>
+                ))}
               </div>
             ))}
           </div>
@@ -1047,11 +1070,26 @@ export function RequestDetailPage() {
         </Card>
       ) : null}
 
+      {role === UserRole.CHAIRMAN && request.escalatedToChairman && (
+        <div className="mb-3 panel p-3">
+          <p className="text-sm font-semibold text-ink">Chairman indent approval</p>
+          <p className="text-xs text-ink-secondary mt-1">This indent exceeded the Coordinator’s daily limit. Approving returns it to the Coordinator to continue the workflow.</p>
+          <label className="text-sm font-medium text-ink-secondary block mt-3 mb-2" htmlFor="chairman-indent-remark">Remark</label>
+          <Textarea id="chairman-indent-remark" value={pmRemark} onChange={(e) => { setPmRemark(e.target.value); if (e.target.value.trim()) setPmRemarkError(''); }} />
+          {pmRemarkError && <p className="text-xs text-danger mt-1">{pmRemarkError}</p>}
+          <Button className="mt-3" variant="accent" disabled={chairmanApproveIndent.isPending} onClick={() => {
+            if (requirePmRemark()) chairmanApproveIndent.mutate(pmRemark.trim());
+          }}>Approve and return to Coordinator</Button>
+        </div>
+      )}
+
       {canCoordinatorLocalClose && (
         <div className="mb-3 panel p-3">
           <p className="text-sm font-semibold text-ink">Coordinator decision</p>
           <p className="text-xs text-ink-secondary mt-1">
-            {coordinatorCanCloseWithinCap
+            {request.chairmanIndentApprovedAt
+              ? 'Chairman approved this indent. Continue with stock issue or procurement.'
+              : coordinatorCanCloseWithinCap
               ? `Within the ₹${(coordinatorCap?.dailyCap ?? 10000).toLocaleString('en-IN')}/day Coordinator limit — you can locally approve and close. No need to escalate to MD / Chairman.`
               : `This indent exceeds the remaining Coordinator daily cap (₹${(coordinatorCap?.dailyCap ?? 10000).toLocaleString('en-IN')}/day) — it will escalate to MD / Chairman.`}
           </p>
@@ -1096,7 +1134,7 @@ export function RequestDetailPage() {
               ? proceedAllocationHint
               : `Waiting for ${allocationOwnerLabel} to proceed with allocation.`}
           </p>
-          <div className="mt-3">
+          {role !== UserRole.STORE_INCHARGE && <div className="mt-3">
             <label className="text-sm font-medium text-ink-secondary block mb-2">
               Remark <span className="text-danger">*</span>
             </label>
@@ -1110,7 +1148,7 @@ export function RequestDetailPage() {
               disabled={!canClickProceedAllocation}
             />
             {pmRemarkError && <p className="text-xs text-danger mt-1">{pmRemarkError}</p>}
-          </div>
+          </div>}
           <Button
             className="mt-3"
             variant="accent"
@@ -1118,11 +1156,12 @@ export function RequestDetailPage() {
             disabled={!canClickProceedAllocation || proceedAllocation.isPending}
             onClick={() => {
               if (!canClickProceedAllocation) return;
+              if (role === UserRole.STORE_INCHARGE) { navigate('/store/issue'); return; }
               if (!requirePmRemark()) return;
               proceedAllocation.mutate(pmRemark.trim());
             }}
           >
-            Proceed with Allocation
+            {role === UserRole.STORE_INCHARGE ? 'Open Issue Material' : 'Proceed with Allocation'}
           </Button>
         </div>
       )}

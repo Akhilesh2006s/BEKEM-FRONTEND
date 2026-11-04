@@ -499,11 +499,22 @@ export function POWizardPage() {
     activeLineIndexes.length > 0 &&
     activeLineIndexes.every((i) => (lineVendorsByIndex[i]?.length ?? 0) > 0);
 
-  const runCompare = () => {
+  const runCompare = async () => {
     if (!allActiveLinesHaveRatesForCompare) {
       toast.error('Enter quoted rate and GST for at least one vendor on each product');
       return;
     }
+    const rfqId = quotations[0]?.rfqId;
+    const rates = activeLineIndexes.flatMap((i) => {
+      const row = lineItems[i];
+      return offersForLineIndex(i).flatMap((offer) => {
+        const quote = resolveOfferQuote(offer, lineVendorQuotesByIndex[i]?.[offer.vendorId]);
+        return row.materialId && quote.rate != null ? [{ vendorId: offer.vendorId, materialId: row.materialId, rate: quote.rate, gstPercent: quote.gstPercent }] : [];
+      });
+    });
+    if (!rfqId || !rates.length) { toast.error('Unable to save quotation rates for this RFQ'); return; }
+    try { await api.patch(`/rfqs/${rfqId}/quotation-rates`, { rates }); }
+    catch { toast.error('Could not save quotation rates'); return; }
     const next: Record<number, string[]> = {};
     activeLineIndexes.forEach((i) => {
       const row = lineItems[i];

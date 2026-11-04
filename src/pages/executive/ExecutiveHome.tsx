@@ -16,6 +16,7 @@ import { DashboardWidgetCards } from '@/components/DashboardWidgetCards';
 import { FulfillmentStatusChip } from '@/components/FulfillmentStatusChip';
 import { PoEmailStatusChip } from '@/components/PoEmailStatusChip';
 import { TodayPanel } from '@/components/layout/TodayPanel';
+import { RoleDashboardActions } from '@/components/layout/RoleDashboardActions';
 import { useTodayActions } from '@/hooks/useTodayActions';
 import { ActionCard } from '@/components/ui/ActionCard';
 
@@ -128,10 +129,16 @@ export function ExecutiveHomePage() {
         }
       />
 
+      <RoleDashboardActions title="Procurement workspace" description="Move from an indent decision to supplier quotations and purchase orders." actions={[
+        { label: 'Review indents', description: 'Decide on stock or procurement', to: '/executive/material-indents' },
+        { label: 'Purchase orders', description: 'Track orders and their status', to: '/executive/purchase-orders' },
+        { label: 'Branch transfers', description: 'Review requests from project managers', to: '/executive/branch-transfers' },
+      ]} />
       <TodayPanel actions={today ?? []} loading={todayLoading} />
 
       <section className="section-gap">
-        <h2 className="section-label mb-3">Process</h2>
+        <h2 className="section-label mb-1">Procurement tasks</h2>
+        <p className="mb-3 text-xs text-ink-secondary">Open a queue to review its current work.</p>
         <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
           <ActionCard
             title="Indents workflow"
@@ -194,6 +201,7 @@ export function ExecutiveHomePage() {
       <div className="flex flex-wrap gap-3 mb-3">
         <input
           type="search"
+          aria-label="Filter projects by code or name"
           placeholder="Filter projects by code or name…"
           value={projectFilter}
           onChange={(e) => {
@@ -206,7 +214,7 @@ export function ExecutiveHomePage() {
           value={statusFilter}
           onChange={(e) => setStatusFilter(e.target.value)}
           className="rounded-lg border border-surface-border px-3 py-2 text-sm bg-white"
-          aria-label="Filter by status"
+          aria-label="Filter projects and purchase orders by status"
         >
           <option value="">All statuses</option>
           <option value="ACTIVE">Active</option>
@@ -245,12 +253,14 @@ export function ExecutiveHomePage() {
           </div>
 
           <h2 className="section-label mb-4">Project overview</h2>
+          <p className="mb-2 text-xs text-ink-secondary lg:hidden">Scroll horizontally to view all project details.</p>
           {!filteredProjects.length ? (
             <EmptyState title="No projects match filters" description="Clear filters to see all projects." />
           ) : (
             <>
               <div className="table-shell mb-4">
                 <table className="data-table min-w-[72rem]">
+                  <caption className="sr-only">Project procurement overview</caption>
                   <thead>
                     <tr>
                       <th>Code</th>
@@ -272,7 +282,7 @@ export function ExecutiveHomePage() {
                         className="cursor-pointer"
                         onClick={() => navigate(`/admin/projects`)}
                       >
-                        <td className="cell-code whitespace-nowrap">{p.code}</td>
+                        <td className="cell-code whitespace-nowrap"><button type="button" className="min-h-[44px] underline underline-offset-2 focus-visible:outline focus-visible:outline-2 focus-visible:outline-bekem-accent" onClick={(event) => { event.stopPropagation(); navigate('/admin/projects'); }}>{p.code}</button></td>
                         <td className="cell-text">{p.name}</td>
                         <td className="cell-text">{p.location || '—'}</td>
                         <td><StatusBadge status={p.status} /></td>
@@ -301,6 +311,7 @@ export function ExecutiveHomePage() {
 
       <section>
         <h2 className="section-label mb-4">Pending purchase orders</h2>
+        <p className="mb-2 text-xs text-ink-secondary lg:hidden">Scroll horizontally to view order details.</p>
         <ListQueryBoundary
           isLoading={pendingPosLoading}
           isError={pendingPosError}
@@ -318,6 +329,7 @@ export function ExecutiveHomePage() {
         >
           <div className="table-shell">
             <table className="data-table min-w-[64rem]">
+              <caption className="sr-only">Purchase orders awaiting processing</caption>
               <thead>
                 <tr>
                   <th>PO No</th>
@@ -336,7 +348,7 @@ export function ExecutiveHomePage() {
                     className="cursor-pointer"
                     onClick={() => navigate(`/purchase-orders/${po.id}`)}
                   >
-                    <td className="cell-code whitespace-nowrap">{po.poNumber || po.draftRef || 'Draft PO'}</td>
+                    <td className="cell-code whitespace-nowrap"><button type="button" className="min-h-[44px] underline underline-offset-2 focus-visible:outline focus-visible:outline-2 focus-visible:outline-bekem-accent" onClick={(event) => { event.stopPropagation(); navigate(`/purchase-orders/${po.id}`); }}>{po.poNumber || po.draftRef || 'Draft PO'}</button></td>
                     <td className="cell-text">{po.vendor?.name ?? 'Vendor TBD'}</td>
                     <td className="num tabular-nums whitespace-nowrap">{formatCurrency(po.amount)}</td>
                     <td><StatusBadge status={po.status} /></td>

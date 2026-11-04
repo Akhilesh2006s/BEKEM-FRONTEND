@@ -9,6 +9,7 @@ import { ListQueryBoundary } from '@/components/ListQueryBoundary';
 import { PageHeader } from '@/components/layout/PageHeader';
 import { ActionCard } from '@/components/ui/ActionCard';
 import { TodayPanel } from '@/components/layout/TodayPanel';
+import { RoleDashboardActions } from '@/components/layout/RoleDashboardActions';
 import { DashboardSearch } from '@/components/layout/DashboardSearch';
 import { DashboardWidgetCards } from '@/components/DashboardWidgetCards';
 import { useTodayActions } from '@/hooks/useTodayActions';
@@ -95,6 +96,11 @@ export function CoordinatorHomePage() {
         subtitle="POs, procurement decisions, and work orders awaiting Coordinator"
       />
 
+      <RoleDashboardActions title="Review queues" description="Open the relevant queue to review purchase orders, held receipts, or transfers." actions={[
+        { label: 'Verify purchase orders', description: 'Review orders awaiting your decision', to: '/coordinator/verify-pos' },
+        { label: 'GRNs on hold', description: 'Review material receipt exceptions', to: '/coordinator/grn-approvals' },
+        { label: 'Branch transfers', description: 'Open the transfer review queue', to: '/coordinator/branch-transfers' },
+      ]} />
       <TodayPanel actions={today ?? []} loading={todayLoading} />
 
       <CoordinatorDailyCapBanner />
@@ -114,7 +120,10 @@ export function CoordinatorHomePage() {
         skeletonRows={2}
         empty={<></>}
       >
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5 section-gap">
+        <section aria-labelledby="coordinator-queues-heading" className="section-gap">
+        <h2 id="coordinator-queues-heading" className="mb-1 text-sm font-semibold text-ink">Work awaiting review</h2>
+        <p className="mb-3 text-xs text-ink-secondary">Choose a queue for the items and decisions available to you.</p>
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
           <ActionCard
             title="Pending PO approval"
             count={pending}
@@ -161,6 +170,7 @@ export function CoordinatorHomePage() {
             onClick={() => navigate('/coordinator/reports')}
           />
         </div>
+        </section>
 
         {totalPending === 0 && indentsNeedingCoord === 0 && (
           <EmptyState

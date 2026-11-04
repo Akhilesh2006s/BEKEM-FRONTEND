@@ -61,11 +61,18 @@ export function BranchTransferDetailPage() {
     mutationFn: () => api.post(`/branch-transfers/${id}/executive-approve`, { note }),
     onSuccess: () => {
       setDoneMessage(
-        'Approved — source Project Manager will dispatch with challan and expected arrival date'
+        'Approved — awaiting Coordinator review'
       );
       setDone(true);
     },
     onError: () => toast.error('Approval failed'),
+    onSettled: invalidate,
+  });
+
+  const coordinatorApprove = useMutation({
+    mutationFn: () => api.post(`/branch-transfers/${id}/coordinator-decide`, { decision: 'transfer', note }),
+    onSuccess: () => { setDoneMessage('Coordinator approved — source Project Manager can dispatch'); setDone(true); },
+    onError: () => toast.error('Coordinator review failed'),
     onSettled: invalidate,
   });
 
@@ -217,13 +224,13 @@ export function BranchTransferDetailPage() {
           )}
           {role === UserRole.EXECUTIVE && transfer.status === 'REQUESTED' && (
             <p className="w-full basis-full text-xs text-ink-secondary rounded-lg bg-surface-muted px-3 py-2">
-              Approve to send to the source Project Manager for dispatch (challan + ETA). Stock moves
+              Approve to send for Coordinator review. Stock moves
               only after dispatch and destination receipt.
             </p>
           )}
           {transfer.status === 'EXECUTIVE_APPROVED' && (
             <p className="w-full basis-full text-xs text-ink-secondary rounded-lg bg-surface-muted px-3 py-2">
-              Source PM must confirm challan and expected arrival, then dispatch.
+              Awaiting Coordinator review before source PM dispatch.
             </p>
           )}
           {(transfer.status === 'DISPATCHED' || transfer.status === 'PARTIALLY_RECEIVED') && (
@@ -283,6 +290,16 @@ export function BranchTransferDetailPage() {
               Reject (remark required)
             </Button>
           </div>
+        </div>
+      )}
+
+      {transfer.canCoordinatorDecide && (
+        <div className="mt-6 space-y-3 border-t border-surface-border pt-6">
+          <h2 className="font-semibold text-sm">Coordinator review</h2>
+          <Textarea value={note} onChange={(e) => setNote(e.target.value)} placeholder="Optional review note…" />
+          <Button variant="accent" size="lg" accentColor={accent} disabled={coordinatorApprove.isPending} onClick={() => coordinatorApprove.mutate()}>
+            Approve transfer for dispatch
+          </Button>
         </div>
       )}
 

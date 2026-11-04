@@ -11,7 +11,6 @@ import type { NotificationDto } from '@afios/shared';
 import { getRoleHomePath } from '@/lib/rolePaths';
 import { AppSidebar } from '@/components/layout/AppSidebar';
 import { MobileNav } from '@/components/layout/MobileNav';
-import { AccessDeniedToast } from '@/components/AccessDeniedToast';
 import { CommandPalette, SearchTrigger } from '@/components/layout/CommandPalette';
 import { BekemLogo } from '@/components/brand/BekemLogo';
 import { useTableDensity } from '@/hooks/useTableDensity';
@@ -75,7 +74,6 @@ export function AppShell() {
       >
         Skip to content
       </a>
-      <AccessDeniedToast />
       <CommandPalette open={searchOpen} onClose={() => setSearchOpen(false)} />
       {!hideNav && <AppSidebar unread={unread} />}
 

@@ -11,6 +11,7 @@ import { PageHeader } from '@/components/layout/PageHeader';
 import { ActionCard } from '@/components/ui/ActionCard';
 import { PmDailyCapBanner } from '@/components/PmDailyCapBanner';
 import { TodayPanel } from '@/components/layout/TodayPanel';
+import { RoleDashboardActions } from '@/components/layout/RoleDashboardActions';
 import { ListQueryBoundary } from '@/components/ListQueryBoundary';
 import { useTodayActions } from '@/hooks/useTodayActions';
 
@@ -57,6 +58,11 @@ export function PMHomePage() {
         subtitle="Material requests and approvals for your project"
       />
 
+      <RoleDashboardActions title="Project decisions" description="Review requests from Store or check material availability before a decision." actions={[
+        { label: 'Review indents', description: 'Open requests forwarded by Store', to: '/pm/material-indents?tab=pending&queue=approved-store' },
+        { label: 'Search materials', description: 'Check stock and procurement options', to: '/pm/material-lookup' },
+        { label: 'Branch transfer requests', description: 'Track transfers between projects', to: '/pm/branch-transfer-requests' },
+      ]} />
       <TodayPanel actions={today ?? []} loading={todayLoading} />
 
       <PmDailyCapBanner cap={dashboard?.dailyCap} />
@@ -90,6 +96,7 @@ export function PMHomePage() {
         </button>
         <button
           type="button"
+          aria-label="Search materials"
           onClick={() => navigate('/pm/material-lookup')}
           className="sm:w-auto panel px-3 py-3 text-left hover:border-bekem-accent/30 transition-colors"
         >
@@ -97,7 +104,10 @@ export function PMHomePage() {
         </button>
       </div>
 
-      <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5 section-gap">
+      <section aria-labelledby="pm-queues-heading" className="section-gap">
+      <h2 id="pm-queues-heading" className="mb-1 text-sm font-semibold text-ink">Requests and approvals</h2>
+      <p className="mb-3 text-xs text-ink-secondary">Choose a queue to see the requests and actions available to you.</p>
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
         <ActionCard
           title="Pending material requests"
           count={pendingCount}
@@ -146,6 +156,7 @@ export function PMHomePage() {
           onClick={() => navigate('/pm/reports')}
         />
       </div>
+      </section>
 
       <ListQueryBoundary
         isLoading={dashboardLoading}
@@ -168,6 +179,7 @@ export function PMHomePage() {
           </div>
           <div className="table-shell">
             <table className="data-table">
+              <caption className="sr-only">Indents awaiting project manager review</caption>
               <thead>
                 <tr>
                   <th>Indent</th>
@@ -183,7 +195,7 @@ export function PMHomePage() {
                     className="cursor-pointer"
                     onClick={() => navigate(`/requests/${r.id}`)}
                   >
-                    <td className="font-semibold">{r.indentNumber}</td>
+                    <td className="font-semibold"><button type="button" className="min-h-[44px] text-left underline underline-offset-2 focus-visible:outline focus-visible:outline-2 focus-visible:outline-bekem-accent" onClick={(event) => { event.stopPropagation(); navigate(`/requests/${r.id}`); }}>{r.indentNumber}</button></td>
                     <td className="text-ink-secondary">
                       {r.material?.name || r.items?.[0]?.material?.name}
                     </td>
@@ -199,7 +211,7 @@ export function PMHomePage() {
             </table>
           </div>
         </div>
-      ) : null}
+      ) : <p className="text-sm text-ink-secondary">No requests are currently awaiting your review.</p>}
       </ListQueryBoundary>
     </div>
   );

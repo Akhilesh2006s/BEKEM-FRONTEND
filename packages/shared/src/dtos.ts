@@ -170,6 +170,7 @@ export interface ProcurementDecisionDto {
   canCoordinatorReview: boolean;
   /** Status allows Coordinator local close (within ₹10,000/day remaining). */
   canCoordinatorLocalClose?: boolean;
+  chairmanIndentApprovedAt?: string | null;
   canFullyIssue?: boolean;
   hasAvailableStock?: boolean;
   redirect?: { type: string; path: string };
@@ -514,6 +515,7 @@ export interface MaterialRequestDto {
   estimatedValue?: number;
   escalatedToHo?: boolean;
   escalatedToChairman?: boolean;
+  chairmanIndentApprovedAt?: string | null;
   pmProceededAllocation?: boolean;
   /** Sequential allocation review after PO approval: Executive → PM → Store → Indent Raiser. */
   allocationReviewStage?: 'EXECUTIVE' | 'PROJECT_MANAGER' | 'STORE_INCHARGE' | 'SITE_INCHARGE' | null;
@@ -563,6 +565,7 @@ export interface MaterialRequestDto {
     issuedAt: string | null;
     issuedToName?: string;
     issuedByName?: string;
+    attachments?: Array<{ name: string; fileType?: string; category?: string; url?: string }>;
     items: Array<{
       materialId: string;
       materialName: string;
