@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { useNavigate, useParams } from 'react-router-dom';
+import { Navigate, useNavigate, useParams } from 'react-router-dom';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { ArrowLeft } from 'lucide-react';
 import { toast } from 'sonner';
@@ -102,6 +102,9 @@ export function AllocateFlowPage() {
   }
   if (isError && isForbiddenError(error)) return null;
   if (!request) return null;
+  if (request.status !== 'PENDING_STORE' || request.allocationReviewStage || request.pmProceededAllocation) {
+    return <Navigate to={`/requests/${request.id}`} replace />;
+  }
 
   const items = request.items?.length
     ? request.items

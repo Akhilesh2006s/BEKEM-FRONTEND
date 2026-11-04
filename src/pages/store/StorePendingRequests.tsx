@@ -201,7 +201,7 @@ export function StorePendingRequestsPage() {
             onRowClick={(id) => {
               const row = filtered.find((r) => r.id === id);
               navigate(
-                row?.status === 'PENDING_STORE' ? `/store/allocate/${id}` : `/requests/${id}`
+                row?.status === 'PENDING_STORE' && !row.allocationReviewStage && !row.pmProceededAllocation ? `/store/allocate/${id}` : `/requests/${id}`
               );
             }}
           />

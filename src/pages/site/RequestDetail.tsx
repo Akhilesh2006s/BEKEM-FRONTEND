@@ -494,7 +494,7 @@ export function RequestDetailPage() {
   if (!request) return null;
 
   // Store pending actions live on AllocateFlow (Allocation Request / Stock requisition).
-  if (role === UserRole.STORE_INCHARGE && request.status === 'PENDING_STORE') {
+  if (role === UserRole.STORE_INCHARGE && request.status === 'PENDING_STORE' && !request.allocationReviewStage && !request.pmProceededAllocation) {
     return <Navigate to={`/store/allocate/${request.id}`} replace />;
   }
 
@@ -1134,7 +1134,7 @@ export function RequestDetailPage() {
               ? proceedAllocationHint
               : `Waiting for ${allocationOwnerLabel} to proceed with allocation.`}
           </p>
-          {role !== UserRole.STORE_INCHARGE && <div className="mt-3">
+          {role !== UserRole.STORE_INCHARGE && canClickProceedAllocation && <div className="mt-3">
             <label className="text-sm font-medium text-ink-secondary block mb-2">
               Remark <span className="text-danger">*</span>
             </label>
@@ -1149,7 +1149,7 @@ export function RequestDetailPage() {
             />
             {pmRemarkError && <p className="text-xs text-danger mt-1">{pmRemarkError}</p>}
           </div>}
-          <Button
+          {canClickProceedAllocation && <Button
             className="mt-3"
             variant="accent"
             accentColor={ROLE_COLORS[role]?.primary || accent}
@@ -1162,7 +1162,7 @@ export function RequestDetailPage() {
             }}
           >
             {role === UserRole.STORE_INCHARGE ? 'Open Issue Material' : 'Proceed with Allocation'}
-          </Button>
+          </Button>}
         </div>
       )}
 
