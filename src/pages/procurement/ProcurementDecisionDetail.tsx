@@ -188,6 +188,8 @@ export function ProcurementDecisionDetailPage({ listPath }: ProcurementDecisionD
       requestedQty: item.requestedQty,
       availableQty: item.availableQty,
       requiredQty: item.requiredQty,
+      unitPrice: item.unitPrice,
+      lineTotal: item.lineTotal,
       material: { id: item.materialId, code: '', name: item.materialName, unit: item.unit },
       unit: item.unit,
     })) ?? [];

@@ -117,7 +117,7 @@ export function formatIndentQueueStatus(
     return 'Received';
   }
   if (stage === 'STORE_INCHARGE') {
-    return 'Yet to be Received';
+    return 'Ready for Store issue';
   }
   if (stage === 'PROJECT_MANAGER') {
     return 'Awaiting at Project Manager';

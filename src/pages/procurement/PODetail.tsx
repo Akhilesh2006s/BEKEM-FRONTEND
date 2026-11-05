@@ -518,7 +518,7 @@ export function PODetailPage() {
               )}
               {data.vendorSelectionReason && (
                 <p className="text-xs text-ink-secondary">
-                  <span className="font-semibold text-ink">Non-L1 reason: </span>
+                  <span className="font-semibold text-ink">Supplier selection reason: </span>
                   {data.vendorSelectionReason}
                 </p>
               )}

@@ -63,7 +63,8 @@ export function StockComparisonTable({
   const rows = lineItems(items);
   if (!rows.length) return null;
 
-  const hasShortfall = rows.some((row) => row.requiredQty > 0);
+  const allIssued = showFulfillment && rows.every((row) => row.requestedQty > 0 && row.remainingToIssueQty <= 0);
+  const hasShortfall = rows.some((row) => showFulfillment ? row.pendingReceiptQty > 0 : row.requiredQty > 0);
   const hasPricing = showPricing || rows.some((row) => row.unitPrice != null);
   const fulfillmentCols = showFulfillment
     ? 4 + (showAvailableToIssue ? 1 : 0)
@@ -87,9 +88,13 @@ export function StockComparisonTable({
               : 'border-success/30 bg-success-light/50 text-success-dark'
           )}
         >
-          {hasShortfall
-            ? 'Insufficient stock available for this project.'
-            : 'Stock is available. Material can be issued without procurement.'}
+          {allIssued
+            ? 'All requested material has been issued.'
+            : hasShortfall
+              ? 'Insufficient stock available for this project.'
+              : showFulfillment
+                ? 'Stock is available for the remaining quantity.'
+                : 'Stock is available. Material can be issued without procurement.'}
         </div>
       )}
 
