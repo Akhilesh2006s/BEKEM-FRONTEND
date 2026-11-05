@@ -38,6 +38,8 @@ const PO_PDF_AFTER_COORDINATOR_STATUSES = ['APPROVED'] as const;
 
 function getNextStepInfo(po: PurchaseOrderDto) {
   switch (po.status) {
+    case 'DRAFT':
+      return { owner: 'Executive', step: 'Review the returned purchase order and resubmit it to the Coordinator.' };
     case 'PM_PENDING':
       return {
         owner: 'Project Manager',
@@ -115,6 +117,18 @@ export function PODetailPage() {
   });
 
   useRedirectOnForbidden(error);
+
+  const resubmit = useMutation({
+    mutationFn: () => api.post(`/purchase-orders/${id}/resubmit`),
+    onSuccess: () => {
+      setDoneMessage('Purchase order resubmitted to Coordinator');
+      setDone(true);
+      queryClient.invalidateQueries({ queryKey: ['purchase-order', id] });
+      queryClient.invalidateQueries({ queryKey: ['purchase-orders'] });
+    },
+    onError: (e: Error & { response?: { data?: { message?: string } } }) =>
+      toast.error(e.response?.data?.message || 'Resubmission failed'),
+  });
 
   const { data: grnData } = useQuery({
     queryKey: ['po-grns', id],
@@ -316,8 +330,9 @@ export function PODetailPage() {
   const isCoordinatorApproved =
     role === UserRole.COORDINATOR && po.status === 'APPROVED' && !chairmanHasFinalApproved;
   const canEditPo =
+    (role === UserRole.EXECUTIVE && po.status === 'DRAFT') ||
     (role === UserRole.COORDINATOR &&
-      (['PENDING_REVIEW', 'COORDINATOR_PENDING', 'CHAIRMAN_PENDING'].includes(po.status) ||
+      (['DRAFT', 'PENDING_REVIEW', 'COORDINATOR_PENDING', 'CHAIRMAN_PENDING'].includes(po.status) ||
         (po.status === 'APPROVED' && !chairmanHasFinalApproved))) ||
     (role === UserRole.CHAIRMAN &&
       ['PENDING_APPROVAL', 'CHAIRMAN_PENDING', 'APPROVED'].includes(po.status));
@@ -601,7 +616,7 @@ export function PODetailPage() {
         </div>
       )}
 
-      {(isCoordinator || canFinalApprove || isPmApprover || isCoordinatorApproved || canChairmanEditException) && (
+      {(isCoordinator || canFinalApprove || isPmApprover || isCoordinatorApproved || canChairmanEditException || canEditPo) && (
         <div className="mt-6 space-y-3">
           {grnData?.grns?.length ? (
             <p className="text-xs text-amber-800 bg-amber-50 border border-amber-200 rounded-lg px-3 py-2">
@@ -609,9 +624,14 @@ export function PODetailPage() {
               conflict with receipts — the server will warn before saving.
             </p>
           ) : null}
+          {role === UserRole.EXECUTIVE && po.status === 'DRAFT' && !editing && (
+            <Button size="lg" disabled={resubmit.isPending} onClick={() => resubmit.mutate()}>
+              Resubmit to Coordinator
+            </Button>
+          )}
           {canEditPo && !editing && (
             <div className="flex flex-wrap gap-2">
-              {role === UserRole.COORDINATOR && (
+              {(role === UserRole.COORDINATOR || role === UserRole.EXECUTIVE) && (
                 <Button
                   variant={po.status === 'APPROVED' ? 'primary' : 'secondary'}
                   size="sm"
