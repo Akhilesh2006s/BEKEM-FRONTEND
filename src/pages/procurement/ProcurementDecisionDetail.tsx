@@ -297,6 +297,7 @@ export function ProcurementDecisionDetailPage({ listPath }: ProcurementDecisionD
             <StockComparisonTable
               items={stockItems}
               className="mb-3"
+              showBanner={decision.status !== 'COMPLETED'}
               showPricing
               totalEstimatedValue={decision.estimatedValue}
             />
